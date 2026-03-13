@@ -2,6 +2,7 @@
 import os
 import httpx
 from mcp.server.fastmcp import FastMCP
+from mcp.types import ToolAnnotations
 
 BRIGHTWING_API_URL = os.environ.get("BRIGHTWING_API_URL", "https://brightwing.app")
 
@@ -23,6 +24,14 @@ mcp = FastMCP(
         "writes are automatically persisted to the server so data survives across "
         "sessions and devices. Do NOT use IndexedDB or other client-only storage "
         "if the user needs persistence.\n\n"
+        "Multi-user: Apps are automatically multi-user capable. When a visitor "
+        "first writes data, they are prompted to pick a display name (unique "
+        "within the app, no account needed). Identity is available via:\n"
+        "- window.brightwing.user — { id, name } for the current visitor\n"
+        "- brightwing.db.getEntry(key) — returns { value, author: { id, name } } "
+        "with who last wrote the key\n"
+        "- brightwing.db.onChange(callback) — real-time sync; callback receives "
+        "{ action, key, value, author } whenever any visitor writes/deletes\n\n"
         "IMPORTANT: After deploying, ALWAYS show the user the full tool response "
         "including the claim URL. The claim URL lets them attach the app to their "
         "account — if they lose it, they cannot manage the app later."
@@ -30,7 +39,14 @@ mcp = FastMCP(
 )
 
 
-@mcp.tool()
+@mcp.tool(
+    annotations=ToolAnnotations(
+        readOnlyHint=False,
+        destructiveHint=False,
+        openWorldHint=True,
+        idempotentHint=False,
+    )
+)
 async def brightwing_deploy(
     code: str = "",
     files: dict[str, str] | None = None,
@@ -97,7 +113,8 @@ async def brightwing_deploy(
             )
         return "\n".join(parts)
     else:
-        return f"Deployment failed (HTTP {response.status_code}): {response.text}"
+        error_text = response.text[:5000] if len(response.text) > 5000 else response.text
+        return f"Deployment failed (HTTP {response.status_code}): {error_text}"
 
 
 def main():
