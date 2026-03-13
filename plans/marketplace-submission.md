@@ -24,8 +24,8 @@ Claude docs: "CORS properly configured for browser clients." Claude.ai calls the
 - [x] **Verify FastMCP's streamable-http transport handles CORS** — it does not; no built-in CORS middleware
 - [x] **Add CORS middleware** — added Starlette `CORSMiddleware` to `http_server.py` allowing `https://claude.ai` and `https://*.claude.ai`
 - [x] **Update `allowed_origins` in `TransportSecuritySettings`** — added Claude's origins (was only `mcp.brightwing.app`, which would reject Claude.ai requests)
-- [ ] **Test from browser** — `fetch("https://mcp.brightwing.app/mcp", ...)` should not be blocked by CORS
-- [ ] Check if **Caddy** is already adding CORS headers — if so, may need to avoid duplicate headers
+- [x] **Test CORS preflight** — verified OPTIONS request from `Origin: https://claude.ai` returns `access-control-allow-origin: https://claude.ai`, `access-control-allow-methods: GET, POST, DELETE, OPTIONS`, `access-control-allow-headers: content-type`, `access-control-allow-credentials: true`
+- [x] **Caddy not duplicating headers** — Caddy proxies through cleanly; CORS headers come from the app layer only
 
 ---
 
@@ -40,11 +40,11 @@ For OpenAI: no-auth apps are supported. No action needed.
 
 ---
 
-## 4. HTTPS / TLS (both platforms)
+## 4. HTTPS / TLS (both platforms) ✅
 
-- [ ] **Verify `mcp.brightwing.app` has valid TLS cert** from a recognized CA (Caddy auto-provisions via Let's Encrypt — likely already done)
-- [ ] **Test certificate chain** — `curl -v https://mcp.brightwing.app` should show valid cert
-- [ ] Ensure cert auto-renews before expiry
+- [x] **Verify `mcp.brightwing.app` has valid TLS cert** — TLSv1.3, issued by Let's Encrypt (E8), CN=mcp.brightwing.app, valid 2026-03-13 to 2026-06-11
+- [x] **Test certificate chain** — `SSL certificate verify ok`, ALPN h2 accepted
+- [x] **Auto-renewal** — Caddy handles Let's Encrypt renewal automatically
 
 ---
 
@@ -252,8 +252,8 @@ Both platforms benefit from a polished public presence.
 2. ~~Privacy policy (§5)~~ ✅
 3. ~~Support channels (§6)~~ ✅
 4. Documentation with 3+ examples (§7) — draft content for submission forms
-5. ~~CORS verification/fix (§2)~~ ✅ (code done, needs browser test after deploy)
-6. TLS verification (§4)
+5. ~~CORS verification/fix (§2)~~ ✅
+6. ~~TLS verification (§4)~~ ✅
 7. Platform testing — Claude.ai, Desktop, Code (§11b)
 8. ~~GA status audit (§12)~~ ✅
 
