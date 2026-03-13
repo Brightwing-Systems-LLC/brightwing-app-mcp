@@ -22,7 +22,10 @@ mcp = FastMCP(
         "window.brightwing.db (set/get/delete/list). localStorage also works — "
         "writes are automatically persisted to the server so data survives across "
         "sessions and devices. Do NOT use IndexedDB or other client-only storage "
-        "if the user needs persistence."
+        "if the user needs persistence.\n\n"
+        "IMPORTANT: After deploying, ALWAYS show the user the full tool response "
+        "including the claim URL. The claim URL lets them attach the app to their "
+        "account — if they lose it, they cannot manage the app later."
     ),
 )
 
@@ -88,8 +91,9 @@ async def brightwing_deploy(
         claim_url = data.get("claim_url")
         if claim_url:
             parts.append(
-                f"\nTo manage this app later, save this claim link: {claim_url}\n"
-                f"(Visit the link and enter your email to attach the app to your account.)"
+                f"\n⚠️ CLAIM URL (show this to the user): {claim_url}\n"
+                f"The user MUST save this link to manage the app later. "
+                f"Visiting the link lets them attach the app to their account."
             )
         return "\n".join(parts)
     else:
