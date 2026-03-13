@@ -6,6 +6,7 @@ from server import mcp
 # Override settings directly before running
 mcp.settings.host = "0.0.0.0"
 mcp.settings.port = 8000
+mcp.settings.streamable_http_path = "/"
 mcp.settings.transport_security = TransportSecuritySettings(
     enable_dns_rebinding_protection=True,
     allowed_hosts=["mcp.brightwing.app"],
