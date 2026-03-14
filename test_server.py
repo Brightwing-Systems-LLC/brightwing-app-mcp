@@ -27,6 +27,7 @@ async def test_deploy_single_file_success():
     mock_response.json.return_value = {
         "url": "https://brightwing.app/abcd-efgh",
         "hash_id": "abcd-efgh",
+        "claim_token": "tok_secret123",
         "claim_url": "https://brightwing.app/claim/abc123",
     }
 
@@ -42,6 +43,8 @@ async def test_deploy_single_file_success():
     assert "https://brightwing.app/abcd-efgh" in result
     assert "abcd-efgh" in result
     assert "claim" in result.lower()
+    assert "tok_secret123" in result
+    assert "app_id=" in result
 
 
 @pytest.mark.asyncio
@@ -116,6 +119,68 @@ async def test_deploy_timeout():
 
         with pytest.raises(httpx.TimeoutException):
             await brightwing_deploy(code="<h1>Hello</h1>")
+
+
+@pytest.mark.asyncio
+async def test_deploy_update_existing_app():
+    """Updating an existing app passes app_id and claim_token to the API."""
+    mock_response = MagicMock()
+    mock_response.status_code = 200
+    mock_response.json.return_value = {
+        "url": "https://brightwing.app/abcd-efgh",
+        "hash_id": "abcd-efgh",
+        "updated": True,
+        "claim_token": "tok_secret123",
+        "claim_url": "https://brightwing.app/claim/abc123",
+    }
+
+    with patch("server.httpx.AsyncClient") as mock_client_cls:
+        mock_client = AsyncMock()
+        mock_client.post.return_value = mock_response
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=False)
+        mock_client_cls.return_value = mock_client
+
+        result = await brightwing_deploy(
+            code="<h1>Updated</h1>",
+            title="Test App",
+            app_id="abcd-efgh",
+            claim_token="tok_secret123",
+        )
+
+    # Verify payload includes app_id and claim_token
+    call_kwargs = mock_client.post.call_args
+    payload = call_kwargs.kwargs.get("json") or call_kwargs[1].get("json")
+    assert payload["app_id"] == "abcd-efgh"
+    assert payload["claim_token"] == "tok_secret123"
+
+    # Verify response shows update success
+    assert "updated successfully" in result.lower()
+    assert "https://brightwing.app/abcd-efgh" in result
+
+
+@pytest.mark.asyncio
+async def test_deploy_update_forbidden():
+    """Updating without valid claim_token returns an error."""
+    mock_response = MagicMock()
+    mock_response.status_code = 403
+    mock_response.text = "Valid claim_token required to update unclaimed app"
+
+    with patch("server.httpx.AsyncClient") as mock_client_cls:
+        mock_client = AsyncMock()
+        mock_client.post.return_value = mock_response
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=False)
+        mock_client_cls.return_value = mock_client
+
+        result = await brightwing_deploy(
+            code="<h1>Updated</h1>",
+            app_id="abcd-efgh",
+            claim_token="wrong_token",
+        )
+
+    assert "Deployment failed" in result
+    assert "403" in result
 
 
 def test_tool_annotations():

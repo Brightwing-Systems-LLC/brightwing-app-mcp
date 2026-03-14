@@ -34,7 +34,10 @@ mcp = FastMCP(
         "{ action, key, value, author } whenever any visitor writes/deletes\n\n"
         "IMPORTANT: After deploying, ALWAYS show the user the full tool response "
         "including the claim URL. The claim URL lets them attach the app to their "
-        "account — if they lose it, they cannot manage the app later."
+        "account — if they lose it, they cannot manage the app later.\n\n"
+        "Updating apps: When the deploy response includes app_id and claim_token, "
+        "keep them in context. If the user asks to update the app, pass app_id "
+        "and claim_token in the next deploy call to update in-place at the same URL."
     ),
 )
 
@@ -53,6 +56,8 @@ async def brightwing_deploy(
     title: str = "",
     slug: str = "",
     remixed_from: str = "",
+    app_id: str = "",
+    claim_token: str = "",
 ) -> str:
     """Deploy a web app to Brightwing Launch and get a live URL.
 
@@ -64,6 +69,9 @@ async def brightwing_deploy(
     unpkg.com/react-dom@18, unpkg.com/@babel/standalone) — do NOT use npm or
     build tools. localStorage calls are automatically persisted to the server.
 
+    To update an existing app, pass the app_id and claim_token from a previous
+    deploy response. This updates the app in-place at the same URL.
+
     Args:
         code: HTML code for single-file apps. Mutually exclusive with `files`.
         files: Dict of {path: content} for multi-file apps. Must include
@@ -73,6 +81,9 @@ async def brightwing_deploy(
         title: A short title for the app
         slug: Optional URL slug (requires an account with Personal tier or above)
         remixed_from: Optional app ID of the app this was remixed from (e.g. abcd-efgh)
+        app_id: Hash ID from a previous deploy to update an existing app
+        claim_token: Claim token from a previous deploy, required when updating
+                     an unclaimed app
     """
     if not code and not files:
         return "Error: Either 'code' or 'files' must be provided."
@@ -88,6 +99,10 @@ async def brightwing_deploy(
         payload["slug"] = slug
     if remixed_from:
         payload["remixed_from"] = remixed_from
+    if app_id:
+        payload["app_id"] = app_id
+    if claim_token:
+        payload["claim_token"] = claim_token
 
     async with httpx.AsyncClient(timeout=30.0) as client:
         response = await client.post(
@@ -99,17 +114,26 @@ async def brightwing_deploy(
         data = response.json()
         url = data.get("url", "")
         hash_id = data.get("hash_id", "")
+        updated = data.get("updated", False)
+        resp_claim_token = data.get("claim_token", "")
         parts = [
             f"Your app is live at: {url}",
             f"Hash ID: {hash_id}",
             f"Source: {url.rstrip('/')}/source",
         ]
+        if updated:
+            parts.insert(0, "App updated successfully!")
         claim_url = data.get("claim_url")
         if claim_url:
             parts.append(
                 f"\n⚠️ CLAIM URL (show this to the user): {claim_url}\n"
                 f"The user MUST save this link to manage the app later. "
                 f"Visiting the link lets them attach the app to their account."
+            )
+        if resp_claim_token:
+            parts.append(
+                f"\nTo update this app later, include app_id=\"{hash_id}\" "
+                f"and claim_token=\"{resp_claim_token}\" in the next deploy call."
             )
         return "\n".join(parts)
     else:
