@@ -2,6 +2,7 @@
 import os
 import httpx
 from mcp.server.fastmcp import FastMCP
+from mcp.server.auth.middleware.auth_context import get_access_token
 from mcp.types import ToolAnnotations
 
 DEPLIXO_API_URL = os.environ.get("DEPLIXO_API_URL", "https://deplixo.com")
@@ -104,10 +105,17 @@ async def deplixo_deploy(
     if claim_token:
         payload["claim_token"] = claim_token
 
+    # Forward the caller's Bearer token when authenticated (optional OAuth).
+    headers: dict[str, str] = {}
+    access_token = get_access_token()
+    if access_token:
+        headers["Authorization"] = f"Bearer {access_token.token}"
+
     async with httpx.AsyncClient(timeout=30.0) as client:
         response = await client.post(
             f"{DEPLIXO_API_URL}/api/v1/deploy",
             json=payload,
+            headers=headers,
         )
 
     if response.status_code == 200:

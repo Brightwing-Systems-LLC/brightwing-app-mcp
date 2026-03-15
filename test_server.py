@@ -3,6 +3,10 @@ import pytest
 import httpx
 from unittest.mock import AsyncMock, MagicMock, patch
 
+from mcp.server.auth.middleware.auth_context import auth_context_var
+from mcp.server.auth.middleware.bearer_auth import AuthenticatedUser
+from mcp.server.auth.provider import AccessToken
+
 from server import deplixo_deploy
 
 
@@ -195,3 +199,139 @@ def test_tool_annotations():
     assert tool.annotations.destructiveHint is False
     assert tool.annotations.openWorldHint is True
     assert tool.annotations.idempotentHint is False
+
+
+# --- Optional OAuth auth tests ---
+
+
+@pytest.mark.asyncio
+async def test_deploy_unauthenticated_sends_no_auth_header():
+    """Without auth context, no Authorization header is sent to the API."""
+    mock_response = MagicMock()
+    mock_response.status_code = 200
+    mock_response.json.return_value = {
+        "url": "https://deplixo.com/abcd-efgh",
+        "hash_id": "abcd-efgh",
+    }
+
+    with patch("server.httpx.AsyncClient") as mock_client_cls:
+        mock_client = AsyncMock()
+        mock_client.post.return_value = mock_response
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=False)
+        mock_client_cls.return_value = mock_client
+
+        await deplixo_deploy(code="<h1>Hello</h1>")
+
+    call_kwargs = mock_client.post.call_args
+    headers = call_kwargs.kwargs.get("headers") or call_kwargs[1].get("headers")
+    assert headers == {}
+
+
+@pytest.mark.asyncio
+async def test_deploy_authenticated_forwards_bearer_token():
+    """With auth context set, the Bearer token is forwarded to the API."""
+    mock_response = MagicMock()
+    mock_response.status_code = 200
+    mock_response.json.return_value = {
+        "url": "https://deplixo.com/abcd-efgh",
+        "hash_id": "abcd-efgh",
+    }
+
+    access_token = AccessToken(token="user_token_abc", client_id="user-42", scopes=[])
+    auth_user = AuthenticatedUser(access_token)
+    token = auth_context_var.set(auth_user)
+
+    try:
+        with patch("server.httpx.AsyncClient") as mock_client_cls:
+            mock_client = AsyncMock()
+            mock_client.post.return_value = mock_response
+            mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+            mock_client.__aexit__ = AsyncMock(return_value=False)
+            mock_client_cls.return_value = mock_client
+
+            await deplixo_deploy(code="<h1>Hello</h1>")
+
+        call_kwargs = mock_client.post.call_args
+        headers = call_kwargs.kwargs.get("headers") or call_kwargs[1].get("headers")
+        assert headers == {"Authorization": "Bearer user_token_abc"}
+    finally:
+        auth_context_var.reset(token)
+
+
+@pytest.mark.asyncio
+async def test_token_verifier_valid_token():
+    """DeplixoTokenVerifier returns AccessToken for valid API responses."""
+    from auth import DeplixoTokenVerifier
+
+    mock_response = MagicMock()
+    mock_response.status_code = 200
+    mock_response.json.return_value = {"id": "user-42", "scopes": ["deploy"]}
+
+    verifier = DeplixoTokenVerifier()
+
+    with patch("auth.httpx.AsyncClient") as mock_client_cls:
+        mock_client = AsyncMock()
+        mock_client.get.return_value = mock_response
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=False)
+        mock_client_cls.return_value = mock_client
+
+        result = await verifier.verify_token("valid_token")
+
+    assert result is not None
+    assert result.client_id == "user-42"
+    assert result.scopes == ["deploy"]
+    assert result.token == "valid_token"
+
+
+@pytest.mark.asyncio
+async def test_token_verifier_invalid_token():
+    """DeplixoTokenVerifier returns None for invalid tokens."""
+    from auth import DeplixoTokenVerifier
+
+    mock_response = MagicMock()
+    mock_response.status_code = 401
+
+    verifier = DeplixoTokenVerifier()
+
+    with patch("auth.httpx.AsyncClient") as mock_client_cls:
+        mock_client = AsyncMock()
+        mock_client.get.return_value = mock_response
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=False)
+        mock_client_cls.return_value = mock_client
+
+        result = await verifier.verify_token("bad_token")
+
+    assert result is None
+
+
+@pytest.mark.asyncio
+async def test_token_verifier_network_error():
+    """DeplixoTokenVerifier returns None on network errors."""
+    from auth import DeplixoTokenVerifier
+
+    verifier = DeplixoTokenVerifier()
+
+    with patch("auth.httpx.AsyncClient") as mock_client_cls:
+        mock_client = AsyncMock()
+        mock_client.get.side_effect = httpx.ConnectError("Connection refused")
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=False)
+        mock_client_cls.return_value = mock_client
+
+        result = await verifier.verify_token("some_token")
+
+    assert result is None
+
+
+def test_http_server_resource_metadata_route():
+    """HTTP server includes OAuth Protected Resource Metadata endpoint."""
+    from http_server import create_app
+
+    with patch("http_server.DeplixoTokenVerifier"):
+        app = create_app()
+
+    paths = [r.path for r in app.routes if hasattr(r, "path")]
+    assert "/.well-known/oauth-protected-resource" in paths
