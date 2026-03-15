@@ -39,7 +39,17 @@ mcp = FastMCP(
         "Unclaimed apps expire after 14 days.\n\n"
         "Updating apps: When the deploy response includes app_id and claim_token, "
         "keep them in context. If the user asks to update the app, pass app_id "
-        "and claim_token in the next deploy call to update in-place at the same URL."
+        "and claim_token in the next deploy call to update in-place at the same URL.\n\n"
+        "File uploads: Apps can accept file uploads (images, documents, etc.) via "
+        "window.deplixo.upload(file). Pass a File object from an <input type=\"file\"> "
+        "or drag-and-drop event, and it returns a Promise that resolves to "
+        "{ url, filename, size }. The url is a permanent link to the hosted file. "
+        "Use this for photo galleries, profile pictures, recipe apps, document "
+        "managers, etc. Max 5MB per file. Do NOT use base64 encoding, data URLs, "
+        "or localStorage for storing images — use deplixo.upload() instead.\n\n"
+        "Additional upload APIs:\n"
+        "- window.deplixo.uploads.list() — returns Promise<Array<{filename, url, size}>>\n"
+        "- window.deplixo.uploads.delete(filename) — deletes an uploaded file"
     ),
 )
 
