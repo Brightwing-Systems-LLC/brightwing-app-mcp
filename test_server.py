@@ -155,7 +155,7 @@ async def test_deploy_update_existing_app():
     assert payload["claim_token"] == "tok_secret123"
 
     # Verify response shows update success
-    assert "updated successfully" in result.lower()
+    assert "app updated" in result.lower()
     assert "https://deplixo.com/abcd-efgh" in result
 
 
@@ -248,7 +248,7 @@ async def test_deploy_no_claim_url():
 
         result = await deplixo_deploy(code="<h1>Hi</h1>")
 
-    assert "CLAIM URL" not in result
+    assert "Claim this app" not in result
     assert "https://deplixo.com/user/myapp" in result
 
 

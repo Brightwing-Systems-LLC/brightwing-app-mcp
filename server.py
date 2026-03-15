@@ -33,8 +33,9 @@ mcp = FastMCP(
         "- deplixo.db.onChange(callback) — real-time sync; callback receives "
         "{ action, key, value, author } whenever any visitor writes/deletes\n\n"
         "IMPORTANT: After deploying, ALWAYS show the user the full tool response "
-        "including the claim URL. The claim URL lets them attach the app to their "
-        "account — if they lose it, they cannot manage the app later.\n\n"
+        "including the claim URL. Claiming gives the user a custom URL "
+        "(deplixo.com/you/my-app) and dashboard access. Unclaimed apps expire "
+        "after 14 days.\n\n"
         "Updating apps: When the deploy response includes app_id and claim_token, "
         "keep them in context. If the user asks to update the app, pass app_id "
         "and claim_token in the next deploy call to update in-place at the same URL."
@@ -79,7 +80,7 @@ async def deplixo_deploy(
                "app.js": "..."}. Files are served at their paths relative to
                the app URL (e.g. deplixo.com/abcd-efgh/style.css).
         title: A short title for the app
-        slug: Optional URL slug (requires an account with Personal tier or above)
+        slug: Optional URL slug for a named app URL (requires an account)
         remixed_from: Optional app ID of the app this was remixed from (e.g. abcd-efgh)
         app_id: Hash ID from a previous deploy to update an existing app
         claim_token: Claim token from a previous deploy, required when updating
@@ -116,25 +117,38 @@ async def deplixo_deploy(
         hash_id = data.get("hash_id", "")
         updated = data.get("updated", False)
         resp_claim_token = data.get("claim_token", "")
-        parts = [
-            f"Your app is live at: {url}",
-            f"Hash ID: {hash_id}",
-            f"Source: {url.rstrip('/')}/source",
-        ]
-        if updated:
-            parts.insert(0, "App updated successfully!")
         claim_url = data.get("claim_url")
+
+        if updated:
+            parts = [
+                f"App updated! Live at: {url}",
+                "",
+                f'To update again, pass app_id="{hash_id}"',
+            ]
+            if resp_claim_token:
+                parts[-1] += f' and claim_token="{resp_claim_token}".'
+            else:
+                parts[-1] += "."
+            return "\n".join(parts)
+
+        # New deploy
+        parts = [f"App deployed! Live at: {url}"]
         if claim_url:
-            parts.append(
-                f"\n⚠️ CLAIM URL (show this to the user): {claim_url}\n"
-                f"The user MUST save this link to manage the app later. "
-                f"Visiting the link lets them attach the app to their account."
-            )
+            parts.extend([
+                "",
+                "Claim this app to:",
+                "  - Name it and get a custom URL (deplixo.com/you/my-app)",
+                "  - Manage it from your dashboard",
+                "  - Track visitors",
+                "  - Keep it permanently (unclaimed apps expire after 14 days)",
+                f"Claim link: {claim_url}",
+            ])
         if resp_claim_token:
-            parts.append(
-                f"\nTo update this app later, include app_id=\"{hash_id}\" "
-                f"and claim_token=\"{resp_claim_token}\" in the next deploy call."
-            )
+            parts.extend([
+                "",
+                f'To update this app in the current conversation, pass app_id="{hash_id}" '
+                f'and claim_token="{resp_claim_token}".',
+            ])
         return "\n".join(parts)
     else:
         error_text = response.text[:5000] if len(response.text) > 5000 else response.text
