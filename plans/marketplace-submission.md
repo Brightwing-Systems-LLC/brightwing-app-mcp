@@ -1,4 +1,4 @@
-# Brightwing Launch MCP — Marketplace Submission Plan
+# Deplixo MCP — Marketplace Submission Plan
 
 Comprehensive task list for submitting to both the **Claude Connector Marketplace** and the **ChatGPT App Store (OpenAI Apps SDK)**.
 
@@ -8,7 +8,7 @@ Comprehensive task list for submitting to both the **Claude Connector Marketplac
 
 Both platforms list missing annotations as the #1 rejection reason.
 
-- [x] **Add `readOnlyHint: false`** to `brightwing_deploy` — the tool creates resources
+- [x] **Add `readOnlyHint: false`** to `deplixo_deploy` — the tool creates resources
 - [x] **Add `destructiveHint: false`** — deployments create, they don't delete/overwrite
 - [x] **Add `openWorldHint: true`** (OpenAI-specific) — the tool publishes content to a public URL
 - [x] **Add `idempotentHint: false`** — each call creates a new deployment (unless same slug)
@@ -23,7 +23,7 @@ Claude docs: "CORS properly configured for browser clients." Claude.ai calls the
 
 - [x] **Verify FastMCP's streamable-http transport handles CORS** — it does not; no built-in CORS middleware
 - [x] **Add CORS middleware** — added Starlette `CORSMiddleware` to `http_server.py` allowing `https://claude.ai` and `https://*.claude.ai`
-- [x] **Update `allowed_origins` in `TransportSecuritySettings`** — added Claude's origins (was only `mcp.brightwing.app`, which would reject Claude.ai requests)
+- [x] **Update `allowed_origins` in `TransportSecuritySettings`** — added Claude's origins (was only `mcp.deplixo.com`, which would reject Claude.ai requests)
 - [x] **Test CORS preflight** — verified OPTIONS request from `Origin: https://claude.ai` returns `access-control-allow-origin: https://claude.ai`, `access-control-allow-methods: GET, POST, DELETE, OPTIONS`, `access-control-allow-headers: content-type`, `access-control-allow-credentials: true`
 - [x] **Caddy not duplicating headers** — Caddy proxies through cleanly; CORS headers come from the app layer only
 
@@ -31,7 +31,7 @@ Claude docs: "CORS properly configured for browser clients." Claude.ai calls the
 
 ## 3. OAuth 2.0 / Authentication (Claude marketplace) ✅
 
-Claude requires OAuth 2.0 if auth is needed. Brightwing Deploy has **no auth**.
+Claude requires OAuth 2.0 if auth is needed. Deplixo Deploy has **no auth**.
 
 - [x] **Confirm no-auth is acceptable** for the Claude directory — the submission guide says "if required" so this is fine
 - [ ] **Document clearly in submission** that no authentication is required (zero-friction design)
@@ -42,7 +42,7 @@ For OpenAI: no-auth apps are supported. No action needed.
 
 ## 4. HTTPS / TLS (both platforms) ✅
 
-- [x] **Verify `mcp.brightwing.app` has valid TLS cert** — TLSv1.3, issued by Let's Encrypt (E8), CN=mcp.brightwing.app, valid 2026-03-13 to 2026-06-11
+- [x] **Verify `mcp.deplixo.com` has valid TLS cert** — TLSv1.3, issued by Let's Encrypt (E8), CN=mcp.deplixo.com, valid 2026-03-13 to 2026-06-11
 - [x] **Test certificate chain** — `SSL certificate verify ok`, ALPN h2 accepted
 - [x] **Auto-renewal** — Caddy handles Let's Encrypt renewal automatically
 
@@ -51,7 +51,7 @@ For OpenAI: no-auth apps are supported. No action needed.
 ## 5. Privacy Policy (BLOCKING — both platforms) ✅
 
 - [x] **Write privacy policy** covering: data collection, usage, retention, sharing, user controls, contact info
-- [x] **Publish at `brightwing.app/privacy`** — live and accessible
+- [x] **Publish at `deplixo.com/privacy`** — live and accessible
 - [ ] **Link in submission forms** for both platforms
 
 Sections present: Information We Collect, How We Use Your Information, Data Sharing, Data Retention, Data Security, Your Rights, Changes to This Policy, Contact Us.
@@ -60,7 +60,7 @@ Sections present: Information We Collect, How We Use Your Information, Data Shar
 
 ## 6. Support Channels (BLOCKING — both platforms) ✅
 
-- [x] **Set up support email** — `launch@brightwingsystems.com` (visible in footer at brightwing.app)
+- [x] **Set up support email** — `support@deplixo.com` (visible in footer at deplixo.com)
 - [ ] **Consider a public issue tracker** (GitHub Issues on the repo, or a support page)
 - [ ] **Document support contact** in submission forms and privacy policy
 
@@ -93,7 +93,7 @@ Usage examples drafted in `plans/usage-examples.md` — 4 examples covering sing
 
   **Example 3 — App with persistent storage:**
   > User prompt: "Create a notes app that saves data between sessions"
-  > → Tool deploys app using window.brightwing.db for persistence → Returns live URL
+  > → Tool deploys app using window.deplixo.db for persistence → Returns live URL
 
   **Example 4 (bonus) — Remix an existing app:**
   > User prompt: "Take app abc123 and add dark mode"
@@ -159,7 +159,7 @@ OpenAI: "thorough testing... stability, responsiveness, and low latency."
 ### 11c. Load / reliability testing
 - [ ] **Verify server stays up under moderate load** — multiple concurrent deployments
 - [ ] **Verify 30s timeout is adequate** for large multi-file deployments
-- [ ] **Test error recovery** — what happens when brightwing.app API is down
+- [ ] **Test error recovery** — what happens when deplixo.com API is down
 
 ---
 
@@ -168,10 +168,10 @@ OpenAI: "thorough testing... stability, responsiveness, and low latency."
 Claude: "General Availability (GA) status. Not marked beta/alpha/development."
 
 - [x] **Audit all user-facing text** for beta/alpha/dev labels:
-  - Server name: "Brightwing Launch" — clean
+  - Server name: "Deplixo" — clean
   - Instructions text — clean
   - CLAUDE.md — clean
-  - brightwing.app landing page — no beta/alpha/experimental labels found
+  - deplixo.com landing page — no beta/alpha/experimental labels found
 - [ ] **Ensure monitoring is in place** — server health checks, uptime monitoring
 - [ ] **Set up alerting** for downtime (e.g. UptimeRobot, Healthchecks.io)
 
@@ -205,7 +205,7 @@ Misrepresentation or gaming the system may result in removal from the program.
 
 OpenAI requires polished metadata for marketplace listing.
 
-- [ ] **App name**: "Brightwing Launch" (clear, not generic)
+- [ ] **App name**: "Deplixo" (clear, not generic)
 - [ ] **App description**: concise explanation of instant web app deployment
 - [ ] **Screenshots**: Create screenshots showing deployment flow and resulting live app
   - Must meet OpenAI's required dimensions
@@ -228,7 +228,7 @@ OpenAI supports `_meta` fields for status text during tool execution.
 
 OpenAI: "suitable for general audiences, including users aged 13-17."
 
-- [ ] **Confirm deployed content filtering** — does the Brightwing API reject inappropriate content? If not, document that the tool is a deployment platform and content moderation is at the platform level
+- [ ] **Confirm deployed content filtering** — does the Deplixo API reject inappropriate content? If not, document that the tool is a deployment platform and content moderation is at the platform level
 - [ ] **Ensure tool description doesn't encourage harmful use**
 
 ---
@@ -242,7 +242,7 @@ Both platforms benefit from a polished public presence.
   - Quick start (how to connect)
   - Tool reference
   - Examples
-  - Links to brightwing.app, privacy policy, support
+  - Links to deplixo.com, privacy policy, support
 - [ ] **Ensure GitHub repo is public** (or has a public-facing docs page)
 
 ---
