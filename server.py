@@ -90,11 +90,16 @@ async def deplixo_deploy(
       Author info is included in collection .list() and .onChange() results.
 
     ### IMPORTANT RULES
-    - ALWAYS use deplixo.db.collection() for persistent/shared data
-    - NEVER use localStorage for shared app state — it does NOT sync reliably
+    - ALWAYS use deplixo.db.collection() for ANY persistent data — even for
+      single-user apps. Users expect their data on all their devices (phone,
+      desktop, tablet). localStorage does NOT sync across devices.
+    - NEVER use localStorage. Always use deplixo.db.collection() instead.
+      Collections sync across all devices and browsers in real-time via SSE.
     - NEVER use base64/data URLs for images — use deplixo.upload()
     - Collections are shared across ALL visitors automatically
-    - Real-time updates work via .onChange() — use it to re-render on changes
+    - Real-time updates work via .onChange() — ALWAYS use it to re-render on changes
+    - If the user's existing code uses localStorage, REWRITE it to use
+      deplixo.db.collection() before deploying. Do not deploy localStorage code.
 
     ### Example: Shared Recipe Box with Photo Uploads
       const recipes = deplixo.db.collection("recipes");
@@ -108,6 +113,15 @@ async def deplixo_deploy(
       }
       recipes.onChange(() => loadRecipes());
       loadRecipes();
+
+    ### Example: Single-user progress tracker (still use collections!)
+      const progress = deplixo.db.collection("progress");
+      // On init: load saved state
+      const items = await progress.list();
+      // On change: save to collection instead of localStorage
+      await progress.add({ day: 5, completed: true });
+      // Real-time sync across user's devices
+      progress.onChange(() => reloadAndRender());
 
     Args:
         code: HTML code for single-file apps. Mutually exclusive with `files`.
