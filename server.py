@@ -87,7 +87,10 @@ async def deplixo_deploy(
 
     ### Identity
       deplixo.user  → { id, name } for the current visitor
+      await deplixo.ensureIdentity()  → prompts for display name (multi-user apps only)
       Author info is included in collection .list() and .onChange() results.
+      NOTE: Writes work WITHOUT identity. Only call ensureIdentity() in multi-user
+      apps where you need to show who contributed. Personal apps must NOT call it.
 
     ### IMPORTANT RULES
     - ALWAYS use deplixo.db.collection() for ANY persistent data — even for
@@ -152,6 +155,9 @@ async def deplixo_deploy(
     Multiple people contribute and see each other's entries.
 
       const recipes = deplixo.db.collection("recipes");
+      // Prompt for display name on startup (multi-user apps only!)
+      await deplixo.ensureIdentity();
+
       async function loadRecipes() {
         const all = await recipes.list();
         renderRecipes(all);  // each item: { id, value, author: { id, name } }
