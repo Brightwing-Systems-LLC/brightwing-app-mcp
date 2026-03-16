@@ -19,19 +19,6 @@ mcp = FastMCP(
         "unpkg.com/@babel/standalone) with <script type=\"text/babel\"> — do NOT "
         "use npm, create-react-app, Vite, or any build tools. "
         "For Vue, Svelte, Three.js, etc., use their CDN builds the same way.\n\n"
-        "Storage: Apps automatically get a persistent key-value store via "
-        "window.deplixo.db (set/get/delete/list). localStorage also works — "
-        "writes are automatically persisted to the server so data survives across "
-        "sessions and devices. Do NOT use IndexedDB or other client-only storage "
-        "if the user needs persistence.\n\n"
-        "Multi-user: Apps are automatically multi-user capable. When a visitor "
-        "first writes data, they are prompted to pick a display name (unique "
-        "within the app, no account needed). Identity is available via:\n"
-        "- window.deplixo.user — { id, name } for the current visitor\n"
-        "- deplixo.db.getEntry(key) — returns { value, author: { id, name } } "
-        "with who last wrote the key\n"
-        "- deplixo.db.onChange(callback) — real-time sync; callback receives "
-        "{ action, key, value, author } whenever any visitor writes/deletes\n\n"
         "CRITICAL: After deploying, you MUST show the user BOTH the live app URL "
         "AND the claim URL as clickable links in your response. Do NOT omit, "
         "summarize, or paraphrase the claim URL — the user needs the exact link "
@@ -39,17 +26,7 @@ mcp = FastMCP(
         "Unclaimed apps expire after 14 days.\n\n"
         "Updating apps: When the deploy response includes app_id and claim_token, "
         "keep them in context. If the user asks to update the app, pass app_id "
-        "and claim_token in the next deploy call to update in-place at the same URL.\n\n"
-        "File uploads: Apps can accept file uploads (images, documents, etc.) via "
-        "window.deplixo.upload(file). Pass a File object from an <input type=\"file\"> "
-        "or drag-and-drop event, and it returns a Promise that resolves to "
-        "{ url, filename, size }. The url is a permanent link to the hosted file. "
-        "Use this for photo galleries, profile pictures, recipe apps, document "
-        "managers, etc. Max 5MB per file. Do NOT use base64 encoding, data URLs, "
-        "or localStorage for storing images — use deplixo.upload() instead.\n\n"
-        "Additional upload APIs:\n"
-        "- window.deplixo.uploads.list() — returns Promise<Array<{filename, url, size}>>\n"
-        "- window.deplixo.uploads.delete(filename) — deletes an uploaded file"
+        "and claim_token in the next deploy call to update in-place at the same URL."
     ),
 )
 
@@ -79,25 +56,58 @@ async def deplixo_deploy(
 
     For React, Vue, or other frameworks: use CDN imports (e.g. unpkg.com/react@18,
     unpkg.com/react-dom@18, unpkg.com/@babel/standalone) — do NOT use npm or
-    build tools. localStorage calls are automatically persisted to the server.
+    build tools.
 
     To update an existing app, pass the app_id and claim_token from a previous
     deploy response. This updates the app in-place at the same URL.
 
-    IMPORTANT — File uploads: If the app involves images, photos, or file uploads,
-    use the Deplixo upload API instead of base64/data URLs/localStorage. The app's
-    injected SDK provides:
-      window.deplixo.upload(file) — upload a File object, returns Promise<{ url, filename, size }>
-      window.deplixo.uploads.list() — list uploaded files
-      window.deplixo.uploads.delete(filename) — delete a file
-    Example usage in app code:
-      const input = document.querySelector('input[type="file"]');
-      input.addEventListener('change', async (e) => {
-        const result = await deplixo.upload(e.target.files[0]);
-        img.src = result.url; // permanent hosted URL
-      });
-    Max 5MB per file. Do NOT use base64, data URLs, or FileReader.readAsDataURL()
-    for storing images — always use deplixo.upload() instead.
+    ## Deplixo SDK (automatically injected into every deployed app)
+
+    Every deployed app gets `window.deplixo` with these APIs:
+
+    ### Collections (shared data — use this for any list of items)
+    All data is shared across ALL visitors in real-time.
+      const recipes = deplixo.db.collection("recipes");
+      await recipes.add({ title: "Pasta", photo: url })  → { id, value }
+      await recipes.list()                                → [{ id, value, author }]
+      await recipes.get(id)                               → { id, value, author }
+      await recipes.update(id, { title: "New" })          → merges fields
+      await recipes.remove(id)                             → deletes item
+      recipes.onChange(({ action, id, value, author }) => { })  → real-time SSE
+
+    ### File Uploads
+      const result = await deplixo.upload(file)  → { url, filename, size }
+      await deplixo.uploads.list()               → [{ filename, url, size }]
+      await deplixo.uploads.delete(filename)
+
+    Upload first, then store the URL in a collection entry:
+      const photo = await deplixo.upload(fileInput.files[0]);
+      await recipes.add({ title: "Pasta", photo: photo.url });
+    Max 5MB per file. Do NOT use base64, data URLs, or FileReader.readAsDataURL().
+
+    ### Identity
+      deplixo.user  → { id, name } for the current visitor
+      Author info is included in collection .list() and .onChange() results.
+
+    ### IMPORTANT RULES
+    - ALWAYS use deplixo.db.collection() for persistent/shared data
+    - NEVER use localStorage for shared app state — it does NOT sync reliably
+    - NEVER use base64/data URLs for images — use deplixo.upload()
+    - Collections are shared across ALL visitors automatically
+    - Real-time updates work via .onChange() — use it to re-render on changes
+
+    ### Example: Shared Recipe Box with Photo Uploads
+      const recipes = deplixo.db.collection("recipes");
+      async function loadRecipes() {
+        const all = await recipes.list();
+        renderRecipes(all);  // each item: { id, value: { title, photo, ... }, author }
+      }
+      async function addRecipe(title, ingredients, photoFile) {
+        const photo = await deplixo.upload(photoFile);
+        await recipes.add({ title, ingredients, photo: photo.url });
+      }
+      recipes.onChange(() => loadRecipes());
+      loadRecipes();
 
     Args:
         code: HTML code for single-file apps. Mutually exclusive with `files`.
