@@ -67,7 +67,8 @@ async def deplixo_deploy(
 
     ### Collections (shared data — use this for any list of items)
     All data is shared across ALL visitors in real-time.
-      const recipes = deplixo.db.collection("recipes");
+    ALWAYS pass { personal: true } or { personal: false } (see patterns below).
+      const recipes = deplixo.db.collection("recipes", { personal: false });
       await recipes.add({ title: "Pasta", photo: url })  → { id, value }
       await recipes.list()                                → [{ id, value, author }]
       await recipes.get(id)                               → { id, value, author }
@@ -89,8 +90,9 @@ async def deplixo_deploy(
       deplixo.user  → { id, name } for the current visitor
       await deplixo.ensureIdentity()  → prompts for display name (multi-user apps only)
       Author info is included in collection .list() and .onChange() results.
-      NOTE: Writes work WITHOUT identity. Only call ensureIdentity() in multi-user
-      apps where you need to show who contributed. Personal apps must NOT call it.
+      NOTE: You MUST always pass the `personal` option when creating a collection:
+      - Personal apps: `deplixo.db.collection("state", { personal: true })`
+      - Multi-user apps: `deplixo.db.collection("recipes", { personal: false })`
 
     ### IMPORTANT RULES
     - ALWAYS use deplixo.db.collection() for ANY persistent data — even for
@@ -107,8 +109,11 @@ async def deplixo_deploy(
     ### Two patterns: Personal Apps vs Multi-User Apps
 
     CRITICAL: Choose the right pattern based on how many people use the app.
+    You MUST always pass the `personal` option explicitly on every collection.
 
     **Personal app** (one person, multiple devices — tracker, journal, todo):
+    - MUST pass `{ personal: true }`:
+        `deplixo.db.collection("state", { personal: true })`
     - Use ONE shared record. All devices read and write the SAME record.
     - Do NOT filter by deplixo.user.id or author — visitor IDs are per-browser,
       so phone and desktop have DIFFERENT IDs even for the same person.
@@ -116,6 +121,8 @@ async def deplixo_deploy(
     - onChange fires on ALL devices, all re-render the same data.
 
     **Multi-user app** (multiple people — chat, shared list, scoreboard):
+    - MUST pass `{ personal: false }`:
+        `deplixo.db.collection("recipes", { personal: false })`
     - Each person adds their own entries via .add() — author is tracked.
     - Use deplixo.user and author info to show who contributed what.
     - Identity modal will prompt for a display name on first write.
@@ -124,7 +131,7 @@ async def deplixo_deploy(
     ### Example: Personal App — Progress Tracker
     One person across phone, tablet, desktop. All devices stay in sync.
 
-      const store = deplixo.db.collection("state");
+      const store = deplixo.db.collection("state", { personal: true });
       let appState = {};
       let recordId = null;
 
@@ -154,9 +161,8 @@ async def deplixo_deploy(
     ### Example: Multi-User App — Shared Recipe Box
     Multiple people contribute and see each other's entries.
 
-      const recipes = deplixo.db.collection("recipes");
-      // Prompt for display name on startup (multi-user apps only!)
-      await deplixo.ensureIdentity();
+      const recipes = deplixo.db.collection("recipes", { personal: false });
+      // Identity prompt happens automatically on first write (add/update/remove)
 
       async function loadRecipes() {
         const all = await recipes.list();
