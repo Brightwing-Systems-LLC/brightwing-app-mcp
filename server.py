@@ -61,6 +61,7 @@ mcp = FastMCP(
         "Use the deplixo_deploy tool to deploy web apps to Deplixo. "
         "When the user asks you to deploy, share, host, or publish their app, "
         "use this tool. It returns a live URL instantly — no account required.\n\n"
+
         "IMPORTANT: Apps can be single-file (pass `code`) or multi-file (pass "
         "`files` dict with paths like index.html, style.css, app.js). "
         "Multi-file apps have each file served at its path under the app URL. "
@@ -68,14 +69,41 @@ mcp = FastMCP(
         "unpkg.com/@babel/standalone) with <script type=\"text/babel\"> — do NOT "
         "use npm, create-react-app, Vite, or any build tools. "
         "For Vue, Svelte, Three.js, etc., use their CDN builds the same way.\n\n"
+
+        "## Build FUNCTIONAL apps, not stubs\n\n"
+        "Deplixo apps have a full server-side SDK injected automatically. "
+        "You MUST use these primitives to make apps actually work. "
+        "NEVER deploy code with TODO comments, placeholder functions, hardcoded "
+        "sample data, or stubbed API calls. Every feature the user asks for "
+        "should be wired to a real implementation using the SDK.\n\n"
+
+        "### How to replace common stubs:\n"
+        "- App needs AI/LLM calls -> use deplixo.ai.prompt() (platform credits, no API key needed)\n"
+        "- App needs to save data -> use deplixo.db.collection() (real-time, cross-device sync)\n"
+        "- App needs external APIs -> use deplixo.proxy() with ${SECRET_NAME} placeholders\n"
+        "- App needs search -> use collection queries with search option\n"
+        "- App needs file uploads -> use deplixo.upload()\n"
+        "- App needs user identity -> use deplixo.user / deplixo.ensureIdentity()\n\n"
+
+        "### Before building, ask clarifying questions if the request is ambiguous:\n"
+        "- What data should the app work with?\n"
+        "- What should the main action actually do?\n"
+        "- Should results be saved, shared, or exported?\n"
+        "Getting clarity upfront produces much better apps than guessing.\n\n"
+
         "CRITICAL: After deploying, you MUST show the user BOTH the live app URL "
         "AND the claim URL as clickable links in your response. Do NOT omit, "
         "summarize, or paraphrase the claim URL — the user needs the exact link "
         "to manage their app. Without it, they lose access permanently. "
-        "Unclaimed apps expire after 24 hours. Claiming is free and extends the app to 7 days. Paid plans (Personal/Pro) keep apps permanently.\n\n"
+        "Unclaimed apps expire after 24 hours. Claiming is free and extends the app to 7 days. "
+        "Paid plans (Personal/Pro) keep apps permanently.\n\n"
+
         "Updating apps: When the deploy response includes app_id and claim_token, "
         "keep them in context. If the user asks to update the app, pass app_id "
-        "and claim_token in the next deploy call to update in-place at the same URL."
+        "and claim_token in the next deploy call to update in-place at the same URL. "
+        "If the user wants to change colors, layout, fonts, or any visual "
+        "customization — just make the changes and redeploy. The app updates "
+        "in-place at the same URL."
     ),
 )
 
@@ -175,6 +203,55 @@ async def deplixo_deploy(
     needed — it just works. The app owner can configure the model tier (low,
     medium, high) and preferred provider in the dashboard.
     NEVER embed LLM API keys in source code. Use deplixo.ai.prompt() instead.
+
+    ## Making Apps Functional — CRITICAL
+
+    The #1 mistake is deploying apps with stubbed functionality. Users expect
+    the app to WORK, not just look nice. Follow these rules:
+
+    ### NEVER do this:
+    - `// TODO: implement API call` -> Use deplixo.ai.prompt() or deplixo.proxy()
+    - `return hardcodedSampleData` -> Wire to a real data source
+    - `function search() { /* implement later */ }` -> Implement it now
+    - `alert("Feature coming soon")` -> Either build it or don't include the button
+
+    ### ALWAYS do this:
+    - If the app generates content (names, stories, quizzes, plans, recipes):
+      -> Use deplixo.ai.prompt() with a specific system prompt and the user's input
+    - If the app searches or looks up information:
+      -> Use deplixo.ai.prompt() with instructions to return structured results
+      -> OR use deplixo.proxy() to call a real API
+    - If the app collects and saves data:
+      -> Use deplixo.db.collection() with appropriate personal/multi-user mode
+    - If the app needs user-specific state:
+      -> Use deplixo.db.collection("state", { personal: true }) — NOT localStorage
+    - If the app has a "calculate" or "analyze" button:
+      -> Implement the actual logic in JavaScript, or use deplixo.ai.prompt()
+        for complex analysis
+
+    ### Example: Brand Name Generator (the RIGHT way)
+    Instead of returning hardcoded names, wire the form to deplixo.ai.prompt():
+
+      async function generateNames(businessInfo) {
+        const result = await deplixo.ai.prompt({
+          system: "You are a branding expert. Generate 10 creative brand names. Return JSON: { names: [{ name, tagline, reasoning }] }",
+          user: `Business: ${businessInfo.description}\nValues: ${businessInfo.values}\nAudience: ${businessInfo.audience}`,
+          json: true
+        });
+        return result.names;
+      }
+
+    ### Example: Using AI as a data source when no real API is available
+    When a real API isn't available, use AI to provide useful (if approximate) results:
+
+      async function searchTrademarks(query) {
+        const result = await deplixo.ai.prompt({
+          system: "You are a trademark research assistant. Analyze potential conflicts. Return JSON: { conflicts: [{ name, similarity, risk_level }], recommendation }",
+          user: `Analyze trademark conflicts for: "${query}"`,
+          json: true
+        });
+        return result;
+      }
 
     ### IMPORTANT RULES
     - ALWAYS use deplixo.db.collection() for ANY persistent data — even for
