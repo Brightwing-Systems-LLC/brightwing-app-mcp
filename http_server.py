@@ -1,9 +1,39 @@
 """HTTP transport for the Deplixo MCP server."""
 import uvicorn
 from starlette.middleware.cors import CORSMiddleware
+from starlette.middleware import Middleware
+from starlette.requests import Request
+from starlette.responses import Response
+from starlette.types import ASGIApp, Receive, Scope, Send
 from mcp.server.transport_security import TransportSecuritySettings
 
 from server import mcp
+
+MAX_REQUEST_BODY_BYTES = 10 * 1024 * 1024  # 10 MB
+
+
+class RequestBodyLimitMiddleware:
+    """Reject requests with bodies larger than MAX_REQUEST_BODY_BYTES."""
+
+    def __init__(self, app: ASGIApp, max_bytes: int = MAX_REQUEST_BODY_BYTES):
+        self.app = app
+        self.max_bytes = max_bytes
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send):
+        if scope["type"] == "http":
+            content_length = 0
+            for header_name, header_value in scope.get("headers", []):
+                if header_name == b"content-length":
+                    content_length = int(header_value)
+                    break
+            if content_length > self.max_bytes:
+                response = Response(
+                    content=f"Request body too large (max {self.max_bytes // 1_000_000}MB)",
+                    status_code=413,
+                )
+                await response(scope, receive, send)
+                return
+        await self.app(scope, receive, send)
 
 # Override settings directly before running
 mcp.settings.host = "0.0.0.0"
@@ -21,8 +51,9 @@ mcp.settings.transport_security = TransportSecuritySettings(
 
 
 def create_app():
-    """Create the Starlette app with CORS middleware."""
+    """Create the Starlette app with CORS and request body limit middleware."""
     app = mcp.streamable_http_app()
+    app.add_middleware(RequestBodyLimitMiddleware, max_bytes=MAX_REQUEST_BODY_BYTES)
     app.add_middleware(
         CORSMiddleware,
         allow_origins=[

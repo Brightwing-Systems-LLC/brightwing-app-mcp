@@ -83,7 +83,17 @@ mcp = FastMCP(
         "- App needs external APIs -> use deplixo.proxy() with ${SECRET_NAME} placeholders\n"
         "- App needs search -> use collection queries with search option\n"
         "- App needs file uploads -> use deplixo.upload()\n"
-        "- App needs user identity -> use deplixo.user / deplixo.ensureIdentity()\n\n"
+        "- App needs user identity -> use deplixo.user / deplixo.ensureIdentity()\n"
+        "- App needs charts/graphs -> use deplixo.chart() (Chart.js, lazy-loaded)\n"
+        "- App needs maps -> use deplixo.map() (Leaflet, lazy-loaded)\n"
+        "- App needs QR codes -> use deplixo.qr.generate() / .toDataURL() / .scan()\n"
+        "- App needs PDF export -> use deplixo.pdf.create() (html2pdf.js, lazy-loaded)\n"
+        "- App needs sounds/audio -> use deplixo.sound.play(\"@ping\") (8 built-in sounds)\n"
+        "- App needs CSV/JSON export -> use deplixo.export.csv() / .json() / .file()\n"
+        "- App needs YouTube/embed -> use deplixo.embed.youtube() / .codepen() / .iframe()\n"
+        "- App needs camera -> use deplixo.camera.photo() (getUserMedia)\n"
+        "- App needs rich text editor -> use deplixo.editor(el) (contentEditable + toolbar)\n"
+        "- App needs sharing -> use deplixo.share() (Web Share API + clipboard fallback)\n\n"
 
         "### Before building, ask clarifying questions if the request is ambiguous:\n"
         "- What data should the app work with?\n"
@@ -107,7 +117,13 @@ mcp = FastMCP(
         "and claim_token in the next deploy call to update in-place at the same URL. "
         "If the user wants to change colors, layout, fonts, or any visual "
         "customization — just make the changes and redeploy. The app updates "
-        "in-place at the same URL."
+        "in-place at the same URL.\n\n"
+
+        "Large apps: If an app has many files or large code, deploy in chunks:\n"
+        "1. First call: deploy with `files` containing index.html and key files\n"
+        "2. Subsequent calls: pass app_id, claim_token, merge_files=True, and a "
+        "`files` dict with just the additional files. Existing files are preserved.\n"
+        "This avoids hitting output token limits on large apps."
     ),
 )
 
@@ -129,6 +145,7 @@ async def deplixo_deploy(
     remixed_from: str = "",
     app_id: str = "",
     claim_token: str = "",
+    merge_files: bool = False,
 ) -> str:
     """Deploy a web app to Deplixo and get a live URL.
 
@@ -142,6 +159,12 @@ async def deplixo_deploy(
 
     To update an existing app, pass the app_id and claim_token from a previous
     deploy response. This updates the app in-place at the same URL.
+
+    For large apps that exceed output limits, deploy in chunks using merge_files:
+    1. First call: deploy index.html (and optionally style.css) as a `files` dict
+    2. Subsequent calls: pass app_id, claim_token, merge_files=True, and a `files`
+       dict with just the additional files (e.g. {"app.js": "..."}).
+       Existing files are preserved — only files in the payload are added/replaced.
 
     ## Deplixo SDK (automatically injected into every deployed app)
 
@@ -209,6 +232,61 @@ async def deplixo_deploy(
     medium, high) and preferred provider in the dashboard.
     NEVER embed LLM API keys in source code. Use deplixo.ai.prompt() instead.
 
+    ### Charts (Chart.js 4.x, lazy-loaded)
+      const chart = await deplixo.chart(containerEl, {
+        type: "bar",
+        data: { labels: ["A","B","C"], datasets: [{ data: [10,20,30] }] },
+        options: { responsive: true }
+      });
+    Returns a Chart.js instance. All Chart.js config options work.
+
+    ### Maps (Leaflet 1.9, lazy-loaded)
+      const map = await deplixo.map(containerEl, { center: [40.7, -74], zoom: 12 });
+      map.addMarker(40.7, -74, "New York");
+      // Geolocation:
+      const pos = await deplixo.location.get();  → { lat, lng, accuracy }
+
+    ### QR Codes (qr-creator, lazy-loaded)
+      await deplixo.qr.generate(el, "https://example.com", { size: 200 });
+      const dataUrl = await deplixo.qr.toDataURL("https://example.com");
+      const text = await deplixo.qr.scan();  // Camera-based scan via BarcodeDetector
+
+    ### PDF Export (html2pdf.js, lazy-loaded)
+      await deplixo.pdf.create(el, { filename: "report.pdf" });
+      const iframe = await deplixo.pdf.preview(el, container);
+
+    ### Sound (Web Audio synth, no CDN)
+      deplixo.sound.play("@ping");   // 8 built-ins: ping, pop, click, ding, error, success, whoosh, beep
+      await deplixo.sound.load("alert", "/my-sound.mp3");
+      deplixo.sound.play("alert");
+      deplixo.sound.stop("alert");
+
+    ### Export (CSV, JSON, file download)
+      deplixo.export.csv(data, "report.csv");           // RFC 4180 compliant
+      deplixo.export.json(data, "data.json");
+      deplixo.export.file("notes.txt", content);
+      const dataUrl = await deplixo.export.screenshot(el);  // html2canvas lazy-loaded
+
+    ### Embeds (YouTube, CodePen, iframe)
+      deplixo.embed.youtube(el, "dQw4w9WgXcQ", { autoplay: true });
+      deplixo.embed.codepen(el, "https://codepen.io/user/pen/abc", { theme: "dark" });
+      deplixo.embed.iframe(el, "https://example.com", { height: "400" });
+
+    ### Camera
+      const blob = await deplixo.camera.photo({ facing: "user" });
+      const url = URL.createObjectURL(blob);
+      const qrText = await deplixo.camera.scan();  // Delegates to deplixo.qr.scan()
+
+    ### Rich Text Editor
+      const editor = deplixo.editor(containerEl, { placeholder: "Write here..." });
+      editor.getContent();       // Returns HTML string
+      editor.setContent("<b>Hello</b>");
+      editor.onChange(html => { });
+
+    ### Sharing (Web Share API + clipboard fallback)
+      const result = await deplixo.share({ title: "My App", url: location.href });
+      // result is "shared" (native) or "copied" (clipboard fallback)
+
     ## Making Apps Functional — CRITICAL
 
     The #1 mistake is deploying apps with stubbed functionality. Users expect
@@ -271,6 +349,12 @@ async def deplixo_deploy(
     - Real-time updates work via .onChange() — ALWAYS use it to re-render on changes
     - If the user's existing code uses localStorage, REWRITE it to use
       deplixo.db.collection() before deploying. Do not deploy localStorage code.
+    - NEVER include Chart.js/Leaflet/html2canvas/html2pdf/qr-creator via <script> tags —
+      use deplixo.chart(), deplixo.map(), deplixo.export.screenshot(), deplixo.pdf.create(),
+      deplixo.qr.generate() instead. The SDK lazy-loads the right CDN version automatically.
+    - NEVER manually create <audio> elements for UI sounds — use deplixo.sound.play("@ping")
+    - NEVER write CSV serialization by hand — use deplixo.export.csv(data, filename)
+    - NEVER build a contentEditable editor from scratch — use deplixo.editor(el)
 
     ### Two patterns: Personal Apps vs Multi-User Apps
 
@@ -356,10 +440,13 @@ async def deplixo_deploy(
         app_id: Hash ID from a previous deploy to update an existing app
         claim_token: Claim token from a previous deploy, required when updating
                      an unclaimed app
+        merge_files: When True on an update, only add/replace files in the payload
+                     and keep all other existing files. Use this to deploy large
+                     apps in multiple calls.
     """
     if not code and not files:
         return "Error: Either 'code' or 'files' must be provided."
-    if files and "index.html" not in files:
+    if files and "index.html" not in files and not (merge_files and app_id):
         return "Error: 'files' must include 'index.html'."
 
     payload: dict = {"title": title, "description": description}
@@ -375,6 +462,8 @@ async def deplixo_deploy(
         payload["app_id"] = app_id
     if claim_token:
         payload["claim_token"] = claim_token
+    if merge_files:
+        payload["merge_files"] = True
 
     async with httpx.AsyncClient(timeout=60.0) as client:
         response = await client.post(
