@@ -23,7 +23,7 @@ mcp = FastMCP(
         "AND the claim URL as clickable links in your response. Do NOT omit, "
         "summarize, or paraphrase the claim URL — the user needs the exact link "
         "to manage their app. Without it, they lose access permanently. "
-        "Unclaimed apps expire after 14 days.\n\n"
+        "Unclaimed apps expire after 24 hours. Claiming is free and extends the app to 7 days. Paid plans (Personal/Pro) keep apps permanently.\n\n"
         "Updating apps: When the deploy response includes app_id and claim_token, "
         "keep them in context. If the user asks to update the app, pass app_id "
         "and claim_token in the next deploy call to update in-place at the same URL."
@@ -277,7 +277,7 @@ async def deplixo_deploy(
                 "  - Name it and get a custom URL (deplixo.com/you/my-app)",
                 "  - Manage it from your dashboard",
                 "  - Track visitors",
-                "  - Keep it permanently (unclaimed apps expire after 14 days)",
+                "  - Keep it longer (unclaimed apps expire in 24 hours! Free accounts get 7 days, paid plans keep apps permanently)",
                 f"Claim link: {claim_url}",
                 "",
                 "IMPORTANT: You MUST show the user BOTH links above — the live URL "
