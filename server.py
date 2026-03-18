@@ -71,11 +71,16 @@ mcp = FastMCP(
         "For Vue, Svelte, Three.js, etc., use their CDN builds the same way.\n\n"
 
         "## Build FUNCTIONAL apps, not stubs\n\n"
-        "Deplixo apps have a full server-side SDK injected automatically. "
+        "Deplixo apps have a full SDK injected automatically (`window.deplixo`). "
         "You MUST use these primitives to make apps actually work. "
         "NEVER deploy code with TODO comments, placeholder functions, hardcoded "
         "sample data, or stubbed API calls. Every feature the user asks for "
         "should be wired to a real implementation using the SDK.\n\n"
+        "CRITICAL: Always prefer Deplixo SDK legos over manual implementations. "
+        "If the app needs charts, use `deplixo.chart()` — do NOT build CSS bars or "
+        "include Chart.js via a script tag. If it needs CSV export, use `deplixo.export.csv()` — "
+        "do NOT write manual CSV serialization. If it needs maps, use `deplixo.map()` — "
+        "do NOT include Leaflet via a script tag. The SDK lazy-loads CDN libraries automatically.\n\n"
 
         "### How to replace common stubs:\n"
         "- App needs AI/LLM calls -> use deplixo.ai.prompt() (platform credits, no API key needed)\n"
