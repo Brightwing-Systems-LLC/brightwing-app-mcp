@@ -259,13 +259,25 @@ async def deplixo_deploy(
         if updated:
             parts = [
                 f"App updated! Live at: {url}",
-                "",
-                f'To update again, pass app_id="{hash_id}"',
             ]
+            if claim_url:
+                parts.extend([
+                    "",
+                    "This app is still UNCLAIMED and will expire in 24 hours.",
+                    "Claim it to keep it longer (free = 7 days, paid = permanent).",
+                    f"Claim link: {claim_url}",
+                    "",
+                    "IMPORTANT: You MUST show the user BOTH the live URL and the "
+                    "claim link. Without the claim link, they will lose access to "
+                    "their app permanently.",
+                ])
+            parts.append("")
+            update_line = f'To update again, pass app_id="{hash_id}"'
             if resp_claim_token:
-                parts[-1] += f' and claim_token="{resp_claim_token}".'
+                update_line += f' and claim_token="{resp_claim_token}".'
             else:
-                parts[-1] += "."
+                update_line += "."
+            parts.append(update_line)
             return "\n".join(parts)
 
         # New deploy
