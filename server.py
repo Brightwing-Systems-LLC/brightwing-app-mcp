@@ -273,13 +273,28 @@ async def deplixo_deploy(
       const dataUrl = await deplixo.export.screenshot(el);  // html2canvas lazy-loaded
 
     ### Embeds (YouTube, CodePen, iframe)
-      deplixo.embed.youtube(el, "dQw4w9WgXcQ", { autoplay: true });
+    Two modes: pass an element to append, OR pass null to get an HTML string (for templates).
+      // DOM mode — appends iframe to container
+      deplixo.embed.youtube(containerEl, "dQw4w9WgXcQ", { autoplay: true });
+      // HTML string mode — returns iframe HTML for use in template literals
+      card.innerHTML = `<div>${deplixo.embed.youtube(null, videoUrl)}</div><p>${note}</p>`;
+      // Same for codepen and iframe:
       deplixo.embed.codepen(el, "https://codepen.io/user/pen/abc", { theme: "dark" });
       deplixo.embed.iframe(el, "https://example.com", { height: "400" });
+    ALWAYS use deplixo.embed.youtube() instead of writing raw <iframe> tags. Pass null
+    as the first arg when building HTML strings in templates.
 
     ### Camera
-      const blob = await deplixo.camera.photo({ facing: "user" });
-      const url = URL.createObjectURL(blob);
+    Two modes: start() for live viewfinder, photo() for one-shot capture.
+      // Live viewfinder (selfie booth, photo app, scanner):
+      const cam = await deplixo.camera.start(previewEl, { facing: "user" });
+      // cam.video is the live <video> element in previewEl
+      const blob = await cam.capture();  // capture current frame as JPEG Blob
+      cam.stop();                        // stop stream, remove video
+      // One-shot capture (no preview needed):
+      const blob = await deplixo.camera.photo({ facing: "environment" });
+    ALWAYS use deplixo.camera.start() for apps with live camera preview.
+    Use deplixo.camera.photo() only for instant capture without a viewfinder.
       const qrText = await deplixo.camera.scan();  // Delegates to deplixo.qr.scan()
 
     ### Rich Text Editor
