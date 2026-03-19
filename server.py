@@ -110,12 +110,12 @@ mcp = FastMCP(
         "of what the app does. This powers social preview cards when the URL is "
         "shared on Twitter, Slack, iMessage, etc. Without it, shared links look bare.\n\n"
 
-        "CRITICAL: After deploying, you MUST show the user BOTH the live app URL "
-        "AND the claim URL as clickable links in your response. Do NOT omit, "
-        "summarize, or paraphrase the claim URL — the user needs the exact link "
-        "to manage their app. Without it, they lose access permanently. "
-        "Unclaimed apps expire after 24 hours. Claiming is free and extends the app to 7 days. "
-        "Paid plans (Personal/Pro) keep apps permanently.\n\n"
+        "CRITICAL: After deploying, you MUST show the user the claim link as a "
+        "clickable link in your response. Do NOT omit, summarize, or paraphrase "
+        "the claim URL — the user needs the exact link to save their app. "
+        "Without it, they lose access permanently. "
+        "Unclaimed apps expire after 10 minutes. Claiming is free and gives the "
+        "user a permanent URL, share link, and dashboard.\n\n"
 
         "Updating apps: When the deploy response includes app_id and claim_token, "
         "keep them in context. If the user asks to update the app, pass app_id "
@@ -123,6 +123,13 @@ mcp = FastMCP(
         "If the user wants to change colors, layout, fonts, or any visual "
         "customization — just make the changes and redeploy. The app updates "
         "in-place at the same URL.\n\n"
+
+        "Edit links: When a user pastes a Deplixo edit link "
+        "(deplixo.com/edit/...) into the conversation, use the "
+        "deplixo_read_source tool to read the current source code. "
+        "Then use deplixo_deploy with the app_id and claim_token to "
+        "push updates. The edit link is shown on the user's dashboard "
+        "for claimed apps.\n\n"
 
         "Large apps: If an app has many files or large code, deploy in chunks:\n"
         "1. First call: deploy with `files` containing index.html and key files\n"
@@ -151,6 +158,7 @@ async def deplixo_deploy(
     app_id: str = "",
     claim_token: str = "",
     merge_files: bool = False,
+    icon: str = "",
 ) -> str:
     """Deploy a web app to Deplixo and get a live URL.
 
@@ -484,6 +492,8 @@ async def deplixo_deploy(
         payload["claim_token"] = claim_token
     if merge_files:
         payload["merge_files"] = True
+    if icon:
+        payload["icon"] = icon
 
     async with httpx.AsyncClient(timeout=60.0) as client:
         response = await client.post(
@@ -503,19 +513,16 @@ async def deplixo_deploy(
 
         if updated:
             parts = [
-                f"App updated! Live at: {url}",
+                f"App updated!",
             ]
             if claim_url:
                 parts.extend([
                     "",
-                    "APP DURATION: This app is still UNCLAIMED and will expire "
-                    "in 24 hours. Claiming is free and extends it to 7 days. "
-                    "Paid plans (Personal/Pro) keep apps permanently.",
+                    "This app is still UNCLAIMED and will expire in 10 minutes.",
                     f"Claim link: {claim_url}",
                     "",
-                    "IMPORTANT: You MUST tell the user how long their app will "
-                    "last and show them BOTH the live URL and the claim link. "
-                    "Without the claim link, they will lose access permanently.",
+                    "IMPORTANT: You MUST show the claim link to the user. "
+                    "Without it, they will lose access permanently.",
                 ])
             parts.append("")
             update_line = f'To update again, pass app_id="{hash_id}"'
@@ -530,24 +537,21 @@ async def deplixo_deploy(
 
         # New deploy
         parts = [
-            f"App deployed! Live at: {url}",
-            "",
-            "APP DURATION: This app will expire in 24 hours unless claimed. "
-            "Claiming is free and extends it to 7 days. "
-            "Paid plans (Personal/Pro) keep apps permanently.",
+            "App deployed!",
         ]
         if claim_url:
             parts.extend([
                 "",
-                f"Claim link: {claim_url}",
-                "Claiming lets the user name it, get a custom URL "
-                "(deplixo.com/you/my-app), manage it from their dashboard, "
-                "and track visitors.",
+                f"Claim link (IMPORTANT — show this to the user): {claim_url}",
                 "",
-                "IMPORTANT: You MUST tell the user how long their app will last "
-                "and show them BOTH the live URL and the claim link. The claim "
-                "link is the ONLY way for the user to save and manage this app. "
-                "If you do not show it, they will lose access permanently.",
+                "The user MUST click this link to claim their app. Claiming is "
+                "free and gives them a permanent URL, a dashboard to manage the "
+                "app, and a share link to send to others. "
+                "Unclaimed apps expire in 10 minutes.",
+                "",
+                "IMPORTANT: You MUST show the claim link to the user. "
+                "The claim link is the ONLY way for the user to save and manage "
+                "this app. If you do not show it, they will lose access permanently.",
             ])
         if resp_claim_token:
             parts.extend([
@@ -561,6 +565,109 @@ async def deplixo_deploy(
     else:
         error_text = response.text[:5000] if len(response.text) > 5000 else response.text
         return f"Deployment failed (HTTP {response.status_code}): {error_text}"
+
+
+@mcp.tool(
+    annotations=ToolAnnotations(
+        readOnlyHint=True,
+        destructiveHint=False,
+        openWorldHint=True,
+        idempotentHint=True,
+    )
+)
+async def deplixo_read_source(url: str) -> str:
+    """Read the source code of a Deplixo app.
+
+    Accepts a Deplixo app URL (e.g. deplixo.com/abcd-efgh) or an edit link
+    (e.g. deplixo.com/edit/abc123...). Edit links grant access to the full
+    source even for private or non-remixable apps.
+
+    Use this when a user pastes a Deplixo URL or edit link and wants to
+    modify the app. After reading the source, use deplixo_deploy with
+    app_id and claim_token to push updates.
+
+    Args:
+        url: A Deplixo app URL or edit link URL
+    """
+    import re
+
+    # Parse URL to extract hash_id or edit token
+    url = url.strip().rstrip("/")
+
+    # Edit link format: deplixo.com/edit/{token}
+    edit_match = re.search(r'/edit/([a-f0-9]{64})', url)
+    # App URL format: deplixo.com/xxxx-xxxx or deplixo.com/abcdefgh
+    app_match = re.search(r'/([a-z]{4}-?[a-z]{4})/?$', url)
+
+    if not edit_match and not app_match:
+        return "Error: Could not parse Deplixo URL. Expected format: deplixo.com/abcd-efgh or deplixo.com/edit/{token}"
+
+    try:
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            if edit_match:
+                token = edit_match.group(1)
+                # First resolve the edit token to get the app hash_id
+                resp = await client.get(
+                    f"{DEPLIXO_API_URL}/edit/{token}/",
+                    headers={"Accept": "application/json"},
+                    follow_redirects=False,
+                )
+                if resp.status_code == 200:
+                    data = resp.json()
+                    hash_id = data.get("hash_id", "")
+                    token_param = token
+                else:
+                    return f"Error: Edit link not found or invalid (HTTP {resp.status_code})"
+            else:
+                hash_id = app_match.group(1).replace("-", "")
+                hash_id = f"{hash_id[:4]}-{hash_id[4:]}"
+                token_param = ""
+
+            # Fetch source
+            source_url = f"{DEPLIXO_API_URL}/api/v1/apps/{hash_id}/source"
+            if token_param:
+                source_url += f"?token={token_param}"
+            resp = await client.get(source_url)
+
+            if resp.status_code != 200:
+                error_text = resp.text[:2000]
+                return f"Error: Could not read source (HTTP {resp.status_code}): {error_text}"
+
+            data = resp.json()
+            parts = [
+                f"Source code for: {data.get('title', 'Untitled')} ({data.get('hash_id', hash_id)})",
+                f"Author: {data.get('author', 'unknown')}",
+            ]
+            if data.get('description'):
+                parts.append(f"Description: {data['description']}")
+            parts.append("")
+
+            # Main code
+            code = data.get("code", "")
+            if code:
+                parts.append("## index.html")
+                parts.append(code)
+
+            # Additional files
+            files = data.get("files", {})
+            for path, content in sorted(files.items()):
+                if path != "index.html" and content:
+                    parts.append(f"\n## {path}")
+                    parts.append(content)
+
+            if token_param:
+                parts.extend([
+                    "",
+                    f'To update this app, use deplixo_deploy with app_id="{data.get("hash_id", hash_id)}" '
+                    f'and claim_token="{token_param}".',
+                ])
+
+            return "\n".join(parts)
+
+    except httpx.TimeoutException:
+        return "Error: Request timed out while reading source."
+    except Exception as e:
+        return f"Error reading source: {str(e)[:500]}"
 
 
 def main():

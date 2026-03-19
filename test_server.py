@@ -40,12 +40,13 @@ async def test_deploy_single_file_success():
 
         result = await deplixo_deploy(code="<h1>Hello</h1>", title="Test App")
 
-    assert "https://deplixo.com/abcd-efgh" in result
-    assert "abcd-efgh" in result
-    assert "claim" in result.lower()
+    assert "App deployed!" in result
+    assert "deplixo.com/claim/abc123" in result
     assert "tok_secret123" in result
     assert "app_id=" in result
-    assert "MUST tell the user how long their app will last" in result
+    assert "10 minutes" in result
+    # New deploys should NOT show the live app URL
+    assert "Live at:" not in result
 
 
 @pytest.mark.asyncio
@@ -68,7 +69,7 @@ async def test_deploy_multi_file_success():
             files={"index.html": "<html></html>", "style.css": "body {}"}
         )
 
-    assert "https://deplixo.com/wxyz-1234" in result
+    assert "App deployed!" in result
 
 
 @pytest.mark.asyncio
@@ -156,8 +157,8 @@ async def test_deploy_update_existing_app():
     assert payload["claim_token"] == "tok_secret123"
 
     # Verify response shows update success
-    assert "app updated" in result.lower()
-    assert "https://deplixo.com/abcd-efgh" in result
+    assert "App updated!" in result
+    assert "10 minutes" in result
 
 
 @pytest.mark.asyncio
@@ -249,8 +250,9 @@ async def test_deploy_no_claim_url():
 
         result = await deplixo_deploy(code="<h1>Hi</h1>")
 
-    assert "Claim this app" not in result
-    assert "https://deplixo.com/user/myapp" in result
+    # Authenticated deploy: no claim warning, just "App deployed!"
+    assert "claim" not in result.lower()
+    assert "App deployed!" in result
 
 
 def test_tool_annotations():
