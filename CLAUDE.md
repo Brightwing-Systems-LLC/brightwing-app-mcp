@@ -39,6 +39,7 @@ MUST be updated:
 
 The docstring has these sections that need updating:
 - **SDK reference** (Collections, Uploads, Identity, Proxy, AI) — add new APIs here
+- **Real-Time Best Practices** — patterns for onChange, reconnect handling, no optimistic rendering
 - **Making Apps Functional** (NEVER/ALWAYS rules, examples) — add new patterns
 - **IMPORTANT RULES** — add new "NEVER X / ALWAYS Y" rules
 - **Two patterns** (Personal vs Multi-User) — update if data model changes

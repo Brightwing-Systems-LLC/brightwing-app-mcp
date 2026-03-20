@@ -101,6 +101,7 @@ mcp = FastMCP(
         "- App needs rich text editor -> use deplixo.editor(el) (contentEditable + toolbar)\n"
         "- App needs sharing -> use deplixo.share() (Web Share API + clipboard fallback)\n"
         "- App needs to send emails -> use deplixo.email.send() (Postmark, 2 credits/email)\n"
+        "- App needs email signups/newsletter -> use deplixo.email.register() + .isRegistered()\n"
         "- App needs external event handling -> use deplixo.webhooks.on(name, handler) for inbound webhooks\n"
         "- App needs scheduled/recurring tasks -> pass `cron` parameter with job definitions (server-side, runs even when nobody's online)\n"
         "- App needs access restriction -> pass `access_code` parameter (users must enter code to access the app)\n"
@@ -361,6 +362,12 @@ async def deplixo_deploy(
     Costs 2 platform credits per email. Daily limit per app (5 free / 50 personal / 500 pro).
     Emails are wrapped in a branded template with the app's icon and title.
     App must be claimed to send emails. Do NOT use external email APIs — use deplixo.email.send().
+
+    Email opt-in (collect visitor emails):
+      await deplixo.email.register("user@example.com", "Jane")  // → { status: "registered", email }
+      const isOpted = await deplixo.email.isRegistered("user@example.com")  // → true/false
+    Use register() to build newsletter signups, waitlists, or notification opt-ins.
+    Stored in the app's database — no external service needed.
 
     ### Inbound Webhooks (receive events from external services)
       // Listen for webhook events in real-time via SSE
