@@ -230,6 +230,8 @@ async def deplixo_deploy(
       await recipes.update(id, { title: "New" })          → merges fields
       await recipes.remove(id)                             → deletes item
       recipes.onChange(({ action, id, value, author }) => { })  → real-time SSE
+      recipes.offChange(handler)                               → remove specific listener
+      recipes.offChange()                                      → remove all listeners
 
     ### File Uploads
       const result = await deplixo.upload(file)  → { url, filename, size }
@@ -429,9 +431,54 @@ async def deplixo_deploy(
       const notes = room.collection("messages", { personal: false });
       room.broadcast.send("typing", { user: "Alice" });
       room.broadcast.on("typing", (data) => { showTyping(data.user); });
+      room.broadcast.off("typing");  // remove all handlers (or pass specific handler)
       const rooms = await deplixo.rooms.list();
       const newRoom = await deplixo.rooms.create({ name: "Game Room" });
     Rooms scope collections and broadcast to a namespace. Room data stored in _rooms collection.
+
+    ### Multi-Channel Chat Pattern (CRITICAL — read before building any chat app)
+    For apps with multiple channels/rooms that users switch between, use ONE global
+    messages collection with a channelId field — do NOT create per-channel collections
+    or per-channel rooms. This avoids listener accumulation on channel switch.
+
+    CORRECT pattern — single collection, filter in onChange:
+      const msgColl = deplixo.db.collection("messages", { personal: false });
+
+      // ONE onChange listener handles ALL channels
+      msgColl.onChange(({ action, id, value, author }) => {
+        if (action === "reconnect") { loadCurrentChannel(); return; }
+        if (action === "add") {
+          if (value.channelId === currentChannelId) {
+            appendMessage({ id, value, author });  // show in current view
+          } else {
+            unreadCounts[value.channelId] = (unreadCounts[value.channelId] || 0) + 1;
+            renderChannelList();  // update badge
+            deplixo.sound.play("@pop");
+          }
+        }
+      });
+
+      // Send: include channelId in every message
+      await msgColl.add({ channelId: currentChannelId, text, ts: Date.now() });
+
+      // Switch channel: just re-filter and re-render, no new listeners
+      async function switchChannel(id) {
+        currentChannelId = id;
+        unreadCounts[id] = 0;
+        const all = await msgColl.list();
+        const msgs = all.filter(m => m.value.channelId === id);
+        renderMessages(msgs);
+      }
+
+    WRONG — do NOT do this (creates leaked listeners on every switch):
+      function switchChannel(id) {
+        const room = deplixo.rooms.join(id);
+        const coll = room.collection("messages", { personal: false });
+        coll.onChange(handler);  // BUG: old listener from previous channel still active!
+      }
+
+    Use Rooms only when users are in ONE room at a time and don't switch frequently
+    (e.g., game lobbies, video calls). For multi-channel chat, use the single-collection pattern above.
 
     ### Real-Time Best Practices (CRITICAL for chat / collaborative apps)
     onChange() delivers events via SSE. Follow these rules to avoid duplicates and missed messages:
@@ -452,7 +499,11 @@ async def deplixo_deploy(
        load data with `await collection.list()`, set a generation counter before the
        await and check it after — discard stale loads if the user switched again.
 
-    4. **Use broadcast for ephemeral signals, collections for persistent data**.
+    4. **Clean up listeners when switching contexts**. If you MUST use per-view collections,
+       call `collection.offChange(handler)` before switching to remove the old listener.
+       Or call `collection.offChange()` (no args) to remove all listeners on that collection.
+
+    5. **Use broadcast for ephemeral signals, collections for persistent data**.
        Typing indicators, cursor positions → broadcast. Messages, posts → collections.
 
     ## Making Apps Functional — CRITICAL
