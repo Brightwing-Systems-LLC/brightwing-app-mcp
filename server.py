@@ -101,6 +101,7 @@ mcp = FastMCP(
         "- App needs sharing -> use deplixo.share() (Web Share API + clipboard fallback)\n"
         "- App needs to send emails -> use deplixo.email.send() (Postmark, 2 credits/email)\n"
         "- App needs external event handling -> use deplixo.webhooks.on(name, handler) for inbound webhooks\n"
+        "- App needs scheduled/recurring tasks -> pass `cron` parameter with job definitions (server-side, runs even when nobody's online)\n"
         "- App needs access restriction -> pass `access_code` parameter (users must enter code to access the app)\n"
         "- App needs user login/auth -> pass `auth_enabled=True` AND use deplixo.auth.requireLogin() in code\n"
         "- App needs user accounts -> pass `auth_enabled=True` AND use deplixo.auth.requireLogin() in code\n"
@@ -188,6 +189,7 @@ async def deplixo_deploy(
     access_code: str | None = None,
     auth_enabled: bool = False,
     auth_allowed_domains: list[str] | None = None,
+    cron: list[dict] | None = None,
 ) -> str:
     """Deploy a web app to Deplixo and get a live URL.
 
@@ -365,6 +367,23 @@ async def deplixo_deploy(
     External services POST to: https://deplixo.com/hooks/{app-id}/{webhook-name}/
     Payloads are stored in the per-app database and broadcast via SSE.
 
+    ### Scheduled Tasks (server-side cron jobs)
+    Pass a `cron` parameter when deploying to set up server-side scheduled tasks.
+    These run even when nobody has the app open.
+
+      cron=[
+        {"name": "daily-quote", "schedule": "0 9 * * *", "action": "event",
+         "config": {"event_type": "new-quote"}},
+        {"name": "cleanup", "schedule": "0 0 * * 0", "action": "trim-collection",
+         "config": {"collection": "logs", "limit": 100}}
+      ]
+
+    Actions: event (broadcast SSE), clear-collection, trim-collection, random-pick, fetch.
+    Schedule uses cron syntax (e.g. "0 9 * * *" = daily at 9am UTC).
+    Client SDK (read-only): deplixo.cron.list(), .pause(name), .resume(name).
+    Listen for cron events: collection.onChange() fires when cron modifies data.
+    Limits: Free 3 jobs, Personal 10, Pro 50. Minimum interval: 5 minutes.
+
     ## Making Apps Functional — CRITICAL
 
     The #1 mistake is deploying apps with stubbed functionality. Users expect
@@ -436,6 +455,8 @@ async def deplixo_deploy(
     - NEVER build custom login/signup forms — use deplixo.auth.requireLogin() with auth_enabled=True
     - When an app needs user accounts, ALWAYS pass auth_enabled=True in the deploy call AND
       call `await deplixo.auth.requireLogin()` at app startup to get the user object
+    - NEVER use setInterval/setTimeout for recurring server tasks — use the `cron` deploy parameter
+    - When an app needs scheduled tasks (daily, hourly, weekly), ALWAYS pass `cron` in the deploy call
 
     ### Two patterns: Personal Apps vs Multi-User Apps
 
@@ -530,6 +551,10 @@ async def deplixo_deploy(
                      (Google, GitHub, or email) to use this app.
         auth_allowed_domains: Optional list of email domains allowed to sign in
                              (e.g. ["company.com"]). Empty = any domain.
+        cron: Optional list of server-side scheduled tasks. Each job is a dict
+              with: name (str), schedule (cron expression like "0 9 * * *"),
+              action ("event"|"clear-collection"|"trim-collection"|"random-pick"|"fetch"),
+              config (dict with action-specific settings like event_type, collection, url).
     """
     if not code and not files:
         return "Error: Either 'code' or 'files' must be provided."
@@ -559,6 +584,8 @@ async def deplixo_deploy(
         payload["auth_enabled"] = True
     if auth_allowed_domains:
         payload["auth_allowed_domains"] = auth_allowed_domains
+    if cron:
+        payload["cron"] = cron
 
     async with httpx.AsyncClient(timeout=60.0) as client:
         response = await client.post(
