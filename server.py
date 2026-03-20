@@ -105,6 +105,10 @@ mcp = FastMCP(
         "- App needs access restriction -> pass `access_code` parameter (users must enter code to access the app)\n"
         "- App needs user login/auth -> pass `auth_enabled=True` AND use deplixo.auth.requireLogin() in code\n"
         "- App needs user accounts -> pass `auth_enabled=True` AND use deplixo.auth.requireLogin() in code\n"
+        "- App needs who's-online / presence -> use deplixo.presence.join/list/onChange (Redis-backed, real-time)\n"
+        "- App needs real-time messaging between users -> use deplixo.broadcast.send/on (ephemeral, no persistence)\n"
+        "- App needs in-app notifications -> use deplixo.notifications.send/list/markRead (per-user, real-time)\n"
+        "- App needs chat rooms / lobbies -> use deplixo.rooms.join/create/list (room-scoped collections + broadcast)\n"
         "- NEVER build custom login forms — Deplixo handles auth via hosted login pages (Google/GitHub/email)\n\n"
 
         "### Authentication (deplixo.auth)\n"
@@ -367,6 +371,16 @@ async def deplixo_deploy(
     External services POST to: https://deplixo.com/hooks/{app-id}/{webhook-name}/
     Payloads are stored in the per-app database and broadcast via SSE.
 
+    ### Broadcast (ephemeral real-time messages)
+      deplixo.broadcast.send("cursor-move", { x: 100, y: 200 });
+      deplixo.broadcast.on("cursor-move", (data, senderId) => {
+        console.log("Cursor at", data.x, data.y, "from", senderId);
+      });
+      deplixo.broadcast.off("cursor-move");  // remove all handlers for this type
+      deplixo.broadcast.off("cursor-move", specificHandler);  // remove one handler
+    Messages are ephemeral — not stored. Rate limit: 20/sec. Max payload: 4KB.
+    Use for: live cursors, typing indicators, game state, drawing strokes.
+
     ### Scheduled Tasks (server-side cron jobs)
     Pass a `cron` parameter when deploying to set up server-side scheduled tasks.
     These run even when nobody has the app open.
@@ -383,6 +397,33 @@ async def deplixo_deploy(
     Client SDK (read-only): deplixo.cron.list(), .pause(name), .resume(name).
     Listen for cron events: collection.onChange() fires when cron modifies data.
     Limits: Free 3 jobs, Personal 10, Pro 50. Minimum interval: 5 minutes.
+
+    ### Presence (who's online)
+      await deplixo.presence.join({ name: "Alice", status: "online" });
+      const users = await deplixo.presence.list();  // → [{id, name, status, avatar, joined_at}]
+      deplixo.presence.onChange(({ action, userId, data }) => {
+        // action: "presence:join" or "presence:leave"
+      });
+      deplixo.presence.leave();  // auto-called on page unload
+    Heartbeat sent every 15s. Users removed after 30s of no heartbeat.
+
+    ### Notifications (per-user in-app)
+      await deplixo.notifications.send("user123", {
+        title: "New message", body: "Alice sent you a message", type: "message"
+      });
+      const { items, unread_count } = await deplixo.notifications.list({ unread_only: true });
+      await deplixo.notifications.markRead([notifId]);  // or markRead() for all
+      deplixo.notifications.onChange((notif) => { showBadge(notif); });
+    Stored in per-app database. Auto-expires after 30 days. Rate limit: 10/min.
+
+    ### Rooms (namespaced multiplayer)
+      const room = deplixo.rooms.join("lobby-1");
+      const notes = room.collection("messages", { personal: false });
+      room.broadcast.send("typing", { user: "Alice" });
+      room.broadcast.on("typing", (data) => { showTyping(data.user); });
+      const rooms = await deplixo.rooms.list();
+      const newRoom = await deplixo.rooms.create({ name: "Game Room" });
+    Rooms scope collections and broadcast to a namespace. Room data stored in _rooms collection.
 
     ## Making Apps Functional — CRITICAL
 
