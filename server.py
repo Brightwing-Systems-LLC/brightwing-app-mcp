@@ -81,11 +81,14 @@ mcp = FastMCP(
         "remove the mock and deploy with deplixo_deploy (the real SDK is injected "
         "automatically).\n\n"
 
-        "## Fast deploy with staging\n\n"
-        "When building a preview artifact, call `deplixo_stage` at the same time "
-        "to store the code server-side. It returns a `stage_id`. When the user "
-        "says 'deploy it', call `deplixo_deploy(staged_id=...)` — no need to "
-        "re-send the full code. This makes deploy near-instant.\n\n"
+        "## How deployment works (two-step: stage then deploy)\n\n"
+        "1. Call `deplixo_stage` with the app code — it stores the code server-side "
+        "and returns a `stage_id`.\n"
+        "2. When ready to deploy, call `deplixo_deploy(staged_id=...)` — this is "
+        "instant because the code is already on the server.\n\n"
+        "deplixo_deploy does NOT accept code directly — you MUST stage first. "
+        "Call deplixo_stage while building the preview artifact so the stage_id "
+        "is ready when the user says 'deploy it'.\n\n"
 
         "IMPORTANT: Apps can be single-file (pass `code`) or multi-file (pass "
         "`files` dict with paths like index.html, style.css, app.js). "
@@ -214,23 +217,33 @@ async def deplixo_stage(
     files: dict[str, str] | None = None,
     title: str = "",
     description: str = "",
+    slug: str = "",
+    access_code: str | None = None,
+    auth_enabled: bool = False,
+    auth_allowed_domains: list[str] | None = None,
+    cron: list[dict] | None = None,
 ) -> str:
-    """Stage app code for fast deployment later. Returns a stage_id.
+    """Stage app code for deployment. Returns a stage_id for instant deploy.
 
     Before calling this tool, tell the user: "Preparing your app for deployment..."
 
-    Call this WHILE building the preview artifact — pass the same code you're
-    putting in the artifact. The stage_id lets you deploy instantly later
-    without re-sending all the code.
+    ALWAYS call this before deplixo_deploy. Pass the app code here — the stage_id
+    lets deplixo_deploy work instantly without re-sending the full code.
 
-    When the user says "deploy it", call deplixo_deploy with just the
-    staged_id — no code parameter needed. This makes deploy near-instant.
+    Call this WHILE building the preview artifact — pass the same code you're
+    putting in the artifact. Include the inline Deplixo SDK mock in the code —
+    the server strips it automatically during deploy.
 
     Args:
         code: HTML code for single-file apps
         files: Dict of {path: content} for multi-file apps
         title: App title
         description: Short description for social cards
+        slug: Optional URL slug
+        access_code: Optional access code to protect the app
+        auth_enabled: Whether to require Deplixo login
+        auth_allowed_domains: Restrict login to specific email domains
+        cron: Server-side scheduled tasks
     """
     if not code and not files:
         return "Error: Either 'code' or 'files' must be provided."
@@ -244,6 +257,16 @@ async def deplixo_stage(
         payload["title"] = title
     if description:
         payload["description"] = description
+    if slug:
+        payload["slug"] = slug
+    if access_code is not None:
+        payload["access_code"] = access_code
+    if auth_enabled:
+        payload["auth_enabled"] = True
+    if auth_allowed_domains:
+        payload["auth_allowed_domains"] = auth_allowed_domains
+    if cron:
+        payload["cron"] = cron
 
     try:
         async with httpx.AsyncClient(timeout=30.0) as client:
@@ -270,29 +293,26 @@ async def deplixo_stage(
     )
 )
 async def deplixo_deploy(
-    code: str = "",
-    files: dict[str, str] | None = None,
-    staged_id: str = "",
+    staged_id: str,
     title: str = "",
     description: str = "",
     slug: str = "",
     remixed_from: str = "",
     app_id: str = "",
     claim_token: str = "",
-    merge_files: bool = False,
     icon: str = "",
     access_code: str | None = None,
     auth_enabled: bool = False,
     auth_allowed_domains: list[str] | None = None,
     cron: list[dict] | None = None,
 ) -> str:
-    """Deploy a web app to Deplixo and get a live URL with real infrastructure.
+    """Deploy a staged app to Deplixo and get a live URL with real infrastructure.
 
     Before calling this tool, tell the user: "Deploying to Deplixo — standby..."
 
-    If you have a staged_id from a previous deplixo_stage call, pass ONLY the
-    staged_id (no code/files needed) — the server will fetch the staged code
-    instantly. This is much faster than re-sending the full code.
+    REQUIRES a staged_id from a previous deplixo_stage call. Call deplixo_stage
+    first with the app code, then call this with the returned staged_id.
+    This makes deploy near-instant since the code is already on the server.
 
     PREREQUISITE: Before building a NEW app, ALWAYS call deplixo_enhance first
     to identify which platform capabilities the app needs and to surface questions
@@ -881,13 +901,7 @@ async def deplixo_deploy(
     if files and "index.html" not in files and not (merge_files and app_id):
         return "Error: 'files' must include 'index.html'."
 
-    payload: dict = {"title": title, "description": description}
-    if staged_id:
-        payload["staged_id"] = staged_id
-    elif files:
-        payload["files"] = files
-    else:
-        payload["code"] = code
+    payload: dict = {"title": title, "description": description, "staged_id": staged_id}
     if slug:
         payload["slug"] = slug
     if remixed_from:
