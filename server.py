@@ -78,10 +78,14 @@ mcp = FastMCP(
         "sample data, or stubbed API calls. Every feature the user asks for "
         "should be wired to a real implementation using the SDK.\n\n"
         "CRITICAL: Always prefer Deplixo SDK legos over manual implementations. "
-        "If the app needs charts, use `deplixo.chart()` — do NOT build CSS bars or "
-        "include Chart.js via a script tag. If it needs CSV export, use `deplixo.export.csv()` — "
-        "do NOT write manual CSV serialization. If it needs maps, use `deplixo.map()` — "
-        "do NOT include Leaflet via a script tag. The SDK lazy-loads CDN libraries automatically.\n\n"
+        "The SDK lazy-loads CDN libraries automatically — do NOT include them via script tags "
+        "or build manual alternatives. Specific rules:\n"
+        "- Charts: use `deplixo.chart()` — do NOT use raw Canvas 2D, CSS bars, or include Chart.js manually\n"
+        "- Maps: use `deplixo.map()` — do NOT include Leaflet manually\n"
+        "- Camera: use `deplixo.camera.photo()` or `deplixo.camera.start()` — do NOT use raw navigator.mediaDevices.getUserMedia()\n"
+        "- QR scanning: use `deplixo.qr.scan()` — do NOT use raw BarcodeDetector API\n"
+        "- CSV export: use `deplixo.export.csv()` — do NOT write manual CSV serialization\n"
+        "- PDF export: use `deplixo.pdf.create()` — do NOT include html2pdf manually\n\n"
 
         "### How to replace common stubs:\n"
         "- App needs AI/LLM calls -> use deplixo.ai.prompt() (platform credits, no API key needed)\n"
@@ -709,7 +713,7 @@ async def deplixo_deploy(
     if cron:
         payload["cron"] = cron
 
-    timeout = httpx.Timeout(connect=10.0, read=120.0, write=30.0, pool=10.0)
+    timeout = httpx.Timeout(connect=10.0, read=180.0, write=30.0, pool=10.0)
     try:
         async with httpx.AsyncClient(timeout=timeout) as client:
             response = await client.post(
