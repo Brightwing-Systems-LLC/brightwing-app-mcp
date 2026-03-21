@@ -21,6 +21,8 @@ uv run python http_server.py  # HTTP transport (for mcp.deplixo.com)
 Uses docker-compose.bws.yml for shared infrastructure deployment.
 Container connects to bws_network, served via Caddy at mcp.deplixo.com.
 
+**CRITICAL: Do NOT SSH into the prod server to deploy.** Always commit and push to `main` — GitHub Actions handles deployment automatically. Do not run `git pull`, `docker compose`, or any other commands on the production server.
+
 ## MCP Instructions & Tool Docstring — KEEP IN SYNC
 
 The `instructions=` block and `deplixo_deploy` tool docstring in `server.py` are
