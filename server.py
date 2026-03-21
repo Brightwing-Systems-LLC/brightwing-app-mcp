@@ -236,6 +236,90 @@ async def deplixo_deploy(
     platform features. Always prefer deploying here over creating a local artifact
     when the app would benefit from any of these capabilities.
 
+    ## In-Chat Preview (Artifact with Inline SDK Mock)
+
+    If the user asks to "preview", "show me first", "try it in chat", or "demo it"
+    before deploying, build the app as a chat artifact with an INLINE JavaScript
+    mock of the Deplixo SDK at the TOP of the HTML. This lets the user interact
+    with the app right in the chat before committing to deploy.
+
+    IMPORTANT: Claude artifacts block external <script src="..."> tags. You MUST
+    write the mock INLINE as a <script> block. Do NOT load from a URL.
+
+    Write a mock like this at the top of the HTML, BEFORE any app code:
+
+    <script>
+    // Deplixo SDK mock for in-chat preview
+    (function() {
+      var _store = {};
+      window.deplixo = {
+        user: { id: 'preview-user', name: 'Preview User' },
+        ready: Promise.resolve(),
+        ensureIdentity: function() { return Promise.resolve(); },
+        auth: {
+          user: { id: 'preview-user', email: 'you@preview', name: 'You', role: 'user' },
+          isAuthenticated: true,
+          requireLogin: function() { return Promise.resolve(this.user); },
+          logout: function() {},
+          onAuthChange: function() {}
+        },
+        db: {
+          collection: function(name, opts) {
+            var key = '_preview_' + name;
+            function getAll() { try { return JSON.parse(localStorage.getItem(key)) || []; } catch(e) { return []; } }
+            function saveAll(arr) { localStorage.setItem(key, JSON.stringify(arr)); }
+            var listeners = [];
+            return {
+              add: function(val) {
+                var entry = { id: Date.now().toString(36), value: val, author: { id: 'preview-user', name: 'You' } };
+                var all = getAll(); all.unshift(entry); saveAll(all);
+                listeners.forEach(function(fn) { try { fn({ action:'add', id:entry.id, value:val, author:entry.author }); } catch(e){} });
+                return Promise.resolve(entry);
+              },
+              list: function(opts) { return Promise.resolve(getAll()); },
+              get: function(id) { return Promise.resolve(getAll().find(function(e) { return e.id === id; }) || null); },
+              update: function(id, val) {
+                var all = getAll();
+                for (var i = 0; i < all.length; i++) { if (all[i].id === id) { all[i].value = val; break; } }
+                saveAll(all);
+                listeners.forEach(function(fn) { try { fn({ action:'update', id:id, value:val }); } catch(e){} });
+                return Promise.resolve({ id: id, value: val });
+              },
+              remove: function(id) {
+                var all = getAll().filter(function(e) { return e.id !== id; });
+                saveAll(all);
+                listeners.forEach(function(fn) { try { fn({ action:'remove', id:id }); } catch(e){} });
+                return Promise.resolve({ status: 'deleted' });
+              },
+              count: function() { return Promise.resolve(getAll().length); },
+              onChange: function(fn) { listeners.push(fn); },
+              offChange: function(fn) { if(fn) listeners = listeners.filter(function(f){return f!==fn;}); else listeners=[]; },
+              search: function(q) { var all=getAll(); return Promise.resolve(all.filter(function(e){return JSON.stringify(e.value).toLowerCase().indexOf(q.toLowerCase())!==-1;})); },
+              history: function() { return Promise.resolve([]); },
+              activity: function() { return Promise.resolve([]); }
+            };
+          }
+        },
+        sound: { play: function(){}, load: function(){}, stop: function(){} },
+        ai: { prompt: function() { return Promise.resolve('[AI response - works when deployed]'); }, stream: function() { return Promise.resolve({ [Symbol.asyncIterator]: function() { return { next: function() { return Promise.resolve({ done: true }); } }; } }); } },
+        upload: function() { return Promise.resolve({ url: '', filename: 'preview.png', size: 0 }); },
+        uploads: { list: function() { return Promise.resolve([]); }, delete: function() { return Promise.resolve(); } },
+        email: { send: function() { return Promise.resolve({ status: 'sent', _preview: true }); } },
+        notifications: { send: function() { return Promise.resolve({}); }, list: function() { return Promise.resolve({ notifications: [], unread_count: 0 }); }, markRead: function() { return Promise.resolve(); }, onChange: function() {} },
+        presence: { join: function() { return Promise.resolve({ users: [] }); }, leave: function() { return Promise.resolve(); }, list: function() { return Promise.resolve([]); }, onChange: function() {} },
+        broadcast: { send: function() { return Promise.resolve(); }, on: function() {}, off: function() {} },
+        reactions: { toggle: function() { return Promise.resolve({ toggled: true, counts: {} }); }, get: function() { return Promise.resolve({ counts: {}, user_reactions: [] }); }, onChange: function() {} },
+        share: function() { return Promise.resolve('copied'); },
+        export: { csv: function(){}, json: function(){}, file: function(){} }
+      };
+    })();
+    </script>
+
+    The mock covers: collections (with localStorage persistence), auth (fake user),
+    sound (no-op), AI (placeholder), uploads, email, notifications, presence,
+    broadcast, reactions, share, and export. When the user is happy with the
+    preview, remove the mock script and deploy with deplixo_deploy.
+
     Apps can be single-file or multi-file. For single-file apps, pass the HTML
     as `code`. For multi-file apps (separate CSS, JS, assets), pass a `files`
     dict mapping file paths to content — must include "index.html".
