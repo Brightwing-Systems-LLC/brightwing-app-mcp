@@ -1386,63 +1386,6 @@ async def deplixo_query(
         return f"Query failed: {str(e)[:300]}"
 
 
-@mcp.tool(
-    annotations=ToolAnnotations(
-        readOnlyHint=True,
-        destructiveHint=False,
-        openWorldHint=True,
-        idempotentHint=True,
-    )
-)
-async def deplixo_list_apps(
-    claim_token: str,
-) -> str:
-    """List all apps owned by the user. Requires a claim_token from any of their apps.
-
-    Before calling this tool, tell the user: "Looking up your apps..."
-
-    Use this when the user says "update my app", "which apps do I have?", or
-    you need to find the right app_id and claim_token for an update.
-
-    Args:
-        claim_token: A claim token from any of the user's apps (proves account ownership)
-    """
-    try:
-        async with httpx.AsyncClient(timeout=15.0) as client:
-            resp = await client.get(
-                f"{DEPLIXO_API_URL}/api/v1/apps/by-token",
-                params={"claim_token": claim_token},
-            )
-
-        if resp.status_code == 404:
-            return "Error: Invalid claim token. No app found with this token."
-        if resp.status_code != 200:
-            return f"Error listing apps (HTTP {resp.status_code})."
-
-        data = resp.json()
-        apps = data.get("apps", [])
-
-        if not apps:
-            return "No apps found."
-
-        parts = [f"## Your Apps ({len(apps)} total)\n"]
-        for app in apps:
-            title = app.get("title", "Untitled")
-            app_id = app.get("app_id", "?")
-            url = app.get("url", "")
-            token = app.get("claim_token", "")
-            parts.append(f"- **{title}** — {url}")
-            parts.append(f"  app_id=\"{app_id}\", claim_token=\"{token}\"")
-
-        parts.extend([
-            "",
-            "To update any app, use deplixo_deploy with the app_id and claim_token shown above.",
-        ])
-        return "\n".join(parts)
-    except Exception as e:
-        return f"Error listing apps: {str(e)[:300]}"
-
-
 def main():
     mcp.run(transport="stdio")
 
