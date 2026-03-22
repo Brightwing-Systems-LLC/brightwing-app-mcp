@@ -998,13 +998,20 @@ async def deplixo_read_source(url: str) -> str:
 
     Before calling this tool, tell the user: "Reading the app source code..."
 
+    TRIGGER CONDITIONS — call this tool when:
+    - The user's message contains "deplixo.com" or a URL with "/edit/"
+    - The user says "retrieve the source", "read my app", "get the code"
+    - The user says "use deplixo to retrieve", "make some changes" with a URL
+    - The user pastes any deplixo.com URL or edit link
+    - The user says "update my app", "change my app", "fix my app" with a URL
+    - The user wants to remix, fork, or understand an existing Deplixo app
+
     Accepts a Deplixo app URL (e.g. deplixo.com/abcd-efgh) or an edit link
     (e.g. deplixo.com/edit/abc123...). Edit links grant access to the full
     source even for private or non-remixable apps.
 
-    Use this when a user pastes a Deplixo URL or edit link and wants to
-    modify the app. After reading the source, use deplixo_deploy with
-    app_id and claim_token to push updates.
+    After reading the source, use deplixo_deploy with app_id and claim_token
+    to push updates.
 
     Args:
         url: A Deplixo app URL or edit link URL
