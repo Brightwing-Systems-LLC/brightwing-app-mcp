@@ -492,7 +492,7 @@ mcp = FastMCP(
         "link as a clickable link. Do NOT show the app URL — only show the activation link. "
         "Unactivated apps expire after 1 HOUR then are permanently deleted. "
         "Activation is free (no credit card), takes seconds, and gives the user "
-        "a 3-day trial. For $3 (first app free!) they keep it forever with "
+        "a 3-day trial. An App Launch ($3, first app free!) makes it permanent with "
         "500 platform credits, a dashboard, and the ability to keep editing.\n\n"
         "Updating apps: When the deploy response includes app_id and claim_token, "
         "keep them in context. Pass app_id and claim_token to update in-place.\n\n"
@@ -674,8 +674,8 @@ async def deplixo_deploy(
                 "3. Explain: The app will be PERMANENTLY DELETED in 1 hour if "
                 "   not activated. Activation is free and takes seconds — no credit "
                 "   card required. They can create a free account or sign in.",
-                "4. Mention: Once activated, they get a 3-day trial. For $3 "
-                "   (first app free!) they keep it forever with 500 platform credits.",
+                "4. Mention: Once activated, they get a 3-day trial. An App Launch ($3, "
+                "   first app free!) makes it permanent with 500 platform credits.",
                 "5. Mention: They also get a dashboard, analytics, and can keep "
                 "   editing the app with you.",
                 "6. Do NOT say \"here is your app URL\" — the activation link IS the "
