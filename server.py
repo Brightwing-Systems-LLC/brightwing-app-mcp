@@ -186,13 +186,13 @@ mcp = FastMCP(
         "of what the app does. This powers social preview cards when the URL is "
         "shared on Twitter, Slack, iMessage, etc. Without it, shared links look bare.\n\n"
 
-        "CRITICAL: After deploying a NEW app, you MUST show the user the claim "
+        "CRITICAL: After deploying a NEW app, you MUST show the user the activation "
         "link as a clickable link in your response. Do NOT show the app URL — "
-        "only show the claim link. Do NOT omit, summarize, or paraphrase "
-        "the claim URL — the user needs the exact link to save their app. "
+        "only show the activation link. Do NOT omit, summarize, or paraphrase "
+        "the activation URL — the user needs the exact link to save their app. "
         "Without it, they lose access permanently. "
-        "Unclaimed apps expire after 1 HOUR then are permanently deleted. "
-        "Claiming is free (no credit card), takes seconds, and gives the user "
+        "Unactivated apps expire after 1 HOUR then are permanently deleted. "
+        "Activation is free (no credit card), takes seconds, and gives the user "
         "a permanent URL, dashboard, and the ability to keep editing.\n\n"
 
         "Updating apps: When the deploy response includes app_id and claim_token, "
@@ -207,7 +207,7 @@ mcp = FastMCP(
         "deplixo_read_source tool to read the current source code. "
         "Then use deplixo_deploy with the app_id and claim_token to "
         "push updates. The edit link is shown on the user's dashboard "
-        "for claimed apps.\n\n"
+        "for activated apps.\n\n"
 
         "Large apps: If an app has many files or large code, deploy in chunks:\n"
         "1. First call: deploy with `files` containing index.html and key files\n"
@@ -246,7 +246,7 @@ async def deplixo_deploy(
 
     Before calling this tool, tell the user: "Deploying to Deplixo — this takes
     about a minute. Please don't interrupt or navigate away until you see the
-    claim link!"
+    activation link!"
 
     IMPORTANT — After deploy succeeds, the response includes a `production_features`
     list. Present these to the user enthusiastically! The preview they interacted
@@ -518,7 +518,7 @@ async def deplixo_deploy(
       const result = await deplixo.share({ title: "My App", url: location.href });
       // result is "shared" (native) or "copied" (clipboard fallback)
 
-    ### Email (platform credits, claimed apps only)
+    ### Email (platform credits, activated apps only)
       const result = await deplixo.email.send({
         to: "user@example.com",
         subject: "Your receipt",
@@ -527,7 +527,7 @@ async def deplixo_deploy(
       });  // → { status: "sent", message_id, credits_used, credits_remaining }
     Costs 2 platform credits per email. Daily limit per app (5 free / 50 personal / 500 pro).
     Emails are wrapped in a branded template with the app's icon and title.
-    App must be claimed to send emails. Do NOT use external email APIs — use deplixo.email.send().
+    App must be activated to send emails. Do NOT use external email APIs — use deplixo.email.send().
 
     Email opt-in (collect visitor emails):
       await deplixo.email.register("user@example.com", "Jane")  // → { status: "registered", email }
@@ -827,7 +827,7 @@ async def deplixo_deploy(
         remixed_from: Optional app ID of the app this was remixed from (e.g. abcd-efgh)
         app_id: Hash ID from a previous deploy to update an existing app
         claim_token: Claim token from a previous deploy, required when updating
-                     an unclaimed app
+                     an unactivated app
         merge_files: When True on an update, only add/replace files in the payload
                      and keep all other existing files. Use this to deploy large
                      apps in multiple calls.
@@ -907,15 +907,15 @@ async def deplixo_deploy(
                 f"App updated successfully at: {url}",
             ]
             if claim_url:
-                # Still unclaimed — remind about claiming
+                # Still unactivated — remind about activation
                 parts.extend([
                     "",
-                    "REMINDER: This app is still UNCLAIMED and will be permanently "
+                    "REMINDER: This app has NOT been activated yet and will be permanently "
                     "deleted in less than 1 hour.",
-                    f"Claim link: {claim_url}",
+                    f"Activation link: {claim_url}",
                     "",
-                    "Show the claim link to the user again so they don't lose "
-                    "their app. Claiming is free — no credit card required.",
+                    "Show the activation link to the user again so they don't lose "
+                    "their app. Activation is free — no credit card required.",
                 ])
             parts.append("")
             update_line = f'To update again, pass app_id="{hash_id}"'
@@ -932,22 +932,22 @@ async def deplixo_deploy(
 
         # --- First deploy of this app ---
         if claim_url:
-            # New unclaimed app — claim link is the primary output
+            # New app — activation link is the primary output
             parts = [
-                "App deployed! Here is the claim link:",
+                "App deployed! Here is the activation link:",
                 "",
                 f"  {claim_url}",
                 "",
                 "INSTRUCTIONS FOR YOUR RESPONSE:",
-                "1. Show ONLY the claim link above to the user — do NOT show the "
-                "   app URL. The claim page has a live preview of the app.",
-                "2. Tell the user: \"Click this link to claim your app.\"",
+                "1. Show ONLY the activation link above to the user — do NOT show the "
+                "   app URL. The activation page has a live preview of the app.",
+                "2. Tell the user: \"Click this link to activate your app.\"",
                 "3. Explain: The app will be PERMANENTLY DELETED in 1 hour if "
-                "   not claimed. Claiming is free and takes seconds — no credit "
+                "   not activated. Activation is free and takes seconds — no credit "
                 "   card required. They can create a free account or sign in.",
-                "4. Mention: Once claimed, they get a permanent URL, a dashboard, "
+                "4. Mention: Once activated, they get a permanent URL, a dashboard, "
                 "   analytics, and they can keep editing the app with you.",
-                "5. Do NOT say \"here is your app URL\" — the claim link IS the "
+                "5. Do NOT say \"here is your app URL\" — the activation link IS the "
                 "   link to show. It includes a live preview of the running app.",
                 "",
                 "You can keep editing this app in the same conversation. Ask the "
@@ -965,7 +965,7 @@ async def deplixo_deploy(
                 parts.extend(_format_production_features(prod_features))
             return "\n".join(parts)
         else:
-            # App was deployed by an authenticated user (already claimed)
+            # App was deployed by an authenticated user (already activated)
             parts = [
                 f"App deployed at: {url}",
             ]
@@ -1331,7 +1331,7 @@ async def deplixo_query(
             resp = await client.post(f"{DEPLIXO_API_URL}/api/v1/query", json=payload)
 
         if resp.status_code == 403:
-            return "Error: Invalid claim token."
+            return "Error: Invalid activation token."
         if resp.status_code != 200:
             data = resp.json() if resp.headers.get("content-type", "").startswith("application/json") else {}
             return f"Query failed: {data.get('error', resp.text[:500])}"
