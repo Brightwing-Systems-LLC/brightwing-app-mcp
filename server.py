@@ -371,7 +371,7 @@ mcp = FastMCP(
 
         "### Email (platform credits, activated apps only)\n"
         "  const result = await deplixo.email.send({ to: \"user@example.com\", subject: \"...\", body: \"...\", html: \"...\" });\n"
-        "  Costs 2 credits/email. Daily limit per app (5 free / 50 personal / 500 pro).\n"
+        "  Costs 2 credits/email. Uses the app's platform credits.\n"
         "  await deplixo.email.register(\"user@example.com\", \"Jane\")  // opt-in\n"
         "  const isOpted = await deplixo.email.isRegistered(\"user@example.com\")\n\n"
 
@@ -391,7 +391,7 @@ mcp = FastMCP(
         "  cron=[{\"name\": \"daily-quote\", \"schedule\": \"0 9 * * *\", \"action\": \"event\", \"config\": {\"event_type\": \"new-quote\"}}]\n"
         "Actions: event, clear-collection, trim-collection, random-pick, fetch.\n"
         "Client SDK: deplixo.cron.list(), .pause(name), .resume(name).\n"
-        "Limits: Free 3 jobs, Personal 10, Pro 50. Min interval: 5 minutes.\n\n"
+        "Min interval: 5 minutes.\n\n"
 
         "### Presence (who's online)\n"
         "  await deplixo.presence.join({ name: \"Alice\", status: \"online\" });\n"
@@ -492,7 +492,8 @@ mcp = FastMCP(
         "link as a clickable link. Do NOT show the app URL — only show the activation link. "
         "Unactivated apps expire after 1 HOUR then are permanently deleted. "
         "Activation is free (no credit card), takes seconds, and gives the user "
-        "a permanent URL, dashboard, and the ability to keep editing.\n\n"
+        "a 3-day trial. For $3 (first app free!) they keep it forever with "
+        "500 platform credits, a dashboard, and the ability to keep editing.\n\n"
         "Updating apps: When the deploy response includes app_id and claim_token, "
         "keep them in context. Pass app_id and claim_token to update in-place.\n\n"
         "Edit links: When a user pastes a Deplixo edit link "
@@ -673,9 +674,11 @@ async def deplixo_deploy(
                 "3. Explain: The app will be PERMANENTLY DELETED in 1 hour if "
                 "   not activated. Activation is free and takes seconds — no credit "
                 "   card required. They can create a free account or sign in.",
-                "4. Mention: Once activated, they get a permanent URL, a dashboard, "
-                "   analytics, and they can keep editing the app with you.",
-                "5. Do NOT say \"here is your app URL\" — the activation link IS the "
+                "4. Mention: Once activated, they get a 3-day trial. For $3 "
+                "   (first app free!) they keep it forever with 500 platform credits.",
+                "5. Mention: They also get a dashboard, analytics, and can keep "
+                "   editing the app with you.",
+                "6. Do NOT say \"here is your app URL\" — the activation link IS the "
                 "   link to show. It includes a live preview of the running app.",
                 "",
                 "You can keep editing this app in the same conversation. Ask the "
