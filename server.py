@@ -577,6 +577,8 @@ mcp = FastMCP(
         "- NEVER use localStorage. Always use deplixo.db.collection() instead.\n"
         "- NEVER use base64/data URLs for images — use deplixo.upload()\n"
         "- NEVER ask users to upload images directly in chat. ALWAYS direct them to the Deplixo Image Manager at deplixo.com/dashboard/images/ to upload and get a CDN URL. This is how images work on Deplixo.\n"
+        "- NEVER use fabricated relative image paths like 'images/photo.png' or 'assets/logo.jpg' — these files don't exist. Use a real CDN URL from the Image Manager, or use a placeholder div.\n"
+        "- EVERY <img> tag in an in-chat preview MUST have an onerror fallback that shows 'Your image will appear here after deployment' — the sandbox blocks external images.\n"
         "- NEVER embed API keys in HTML/JS — use deplixo.proxy() with ${SECRET_NAME}\n"
         "- NEVER embed LLM API keys — use deplixo.ai.prompt() (uses platform credits)\n"
         "- NEVER include Chart.js/Leaflet/html2canvas/html2pdf/qr-creator via <script> tags — use deplixo.chart(), deplixo.map(), etc.\n"
@@ -664,7 +666,10 @@ async def deplixo_deploy(
 
     IMAGES: Never ask users to upload images in chat. Direct them to the
     Deplixo Image Manager at deplixo.com/dashboard/images/ to upload and
-    get a CDN URL to use in the app code.
+    get a CDN URL to use in the app code. Never use fabricated relative
+    paths like "images/photo.png". Every <img> in a preview artifact MUST
+    have an onerror fallback showing "Your image will appear here after
+    deployment" since the sandbox blocks external images.
 
     Args:
         code: HTML for single-file apps. Mutually exclusive with files.
@@ -1024,7 +1029,9 @@ async def deplixo_enhance(
 
     IMAGES: If the user mentions images, photos, logos, or icons — do NOT ask them
     to upload in chat. Direct them to the Deplixo Image Manager at
-    deplixo.com/dashboard/images/ to upload and get a CDN URL.
+    deplixo.com/dashboard/images/ to upload and get a CDN URL. Never use
+    fabricated relative paths like "images/photo.png". In preview artifacts,
+    every <img> MUST have an onerror fallback showing a placeholder.
 
     Args:
         description: What the user wants to build (their request, plain English)
@@ -1115,6 +1122,22 @@ async def deplixo_enhance(
             "the CDN link with you. This is the ONLY way to add custom images. "
             "Say exactly: 'To add your photo, upload it at deplixo.com/dashboard/images/ "
             "and paste the link here.'\n"
+        )
+
+        # onerror fallback instruction — critical for in-chat previews
+        parts.append(
+            "**IMPORTANT — Preview images:** In-chat preview artifacts run in a sandbox "
+            "that blocks external images. EVERY <img> tag in a preview MUST have an "
+            "onerror fallback so the user sees a placeholder instead of a broken icon:\n"
+            '  <img src="https://cdn.deplixo.com/i/user/photo.jpg"\n'
+            "       onerror=\"this.style.display='none';this.parentElement.insertAdjacentHTML("
+            "'beforeend','<div style=\\\"background:#1a1a2e;border:2px dashed #444;"
+            "border-radius:8px;padding:20px;text-align:center;color:#888\\\">"
+            "Your image will appear here after deployment</div>')\"\n"
+            '       alt="User image">\n'
+            "NEVER use relative image paths like 'images/photo.png' — these files don't "
+            "exist. Either use a real CDN URL from the Image Manager or use a placeholder "
+            "div with the onerror pattern above.\n"
         )
 
         if data.get("recommended_primitives"):
