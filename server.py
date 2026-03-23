@@ -272,6 +272,7 @@ mcp = FastMCP(
         "- App needs camera -> use deplixo.camera.photo() (getUserMedia)\n"
         "- App needs rich text editor -> use deplixo.editor(el) (contentEditable + toolbar)\n"
         "- App needs sharing -> use deplixo.share() (Web Share API + clipboard fallback)\n"
+        "- App needs custom images/logo/photos -> user uploads at deplixo.com/dashboard/images/ (Deplixo Image Manager) and shares CDN URL. NEVER use Imgur, base64, or data URIs.\n"
         "- App needs to send emails -> use deplixo.email.send() (Postmark, 2 credits/email)\n"
         "- App needs email signups/newsletter -> use deplixo.email.register() + .isRegistered()\n"
         "- App needs external event handling -> use deplixo.webhooks.on(name, handler) for inbound webhooks\n"
@@ -591,6 +592,7 @@ mcp = FastMCP(
         "- What data should the app work with?\n"
         "- What should the main action actually do?\n"
         "- Should results be saved, shared, or exported?\n"
+        "- Does the app need custom images, logos, or photos? If so, tell the user to upload at deplixo.com/dashboard/images/ and share the CDN link.\n"
         "Getting clarity upfront produces much better apps than guessing.\n\n"
 
         "## Post-deploy behavior\n\n"
@@ -800,6 +802,9 @@ async def deplixo_deploy(
                 "   editing the app with you.",
                 "6. Do NOT say \"here is your app URL\" — the activation link IS the "
                 "   link to show. It includes a live preview of the running app.",
+                "7. If the app could benefit from custom images, tell the user: "
+                "   'Want to add your own images? Upload them at "
+                "   deplixo.com/dashboard/images/ and share the CDN link with me.'",
                 "",
                 "You can keep editing this app in the same conversation. Ask the "
                 "user what they'd like to change.",
@@ -1083,6 +1088,13 @@ async def deplixo_enhance(
             parts.append("**Ask the user these questions before building:**\n")
             for q in data["clarifying_questions"]:
                 parts.append(f"- {q}")
+            # Always include image question — it's a Deplixo differentiator
+            parts.append(
+                "- Do you want to use your own images (logo, photos, icons)? "
+                "If so, upload them at **deplixo.com/dashboard/images/** and "
+                "share the CDN links with me. (This is Deplixo's built-in Image "
+                "Manager — free, instant CDN hosting for your app's images.)"
+            )
             parts.append("")
 
         if data.get("recommended_primitives"):
@@ -1091,14 +1103,6 @@ async def deplixo_enhance(
             for p in data["recommended_primitives"]:
                 parts.append(f"- {p}")
             parts.append("")
-
-        parts.append(
-            "**Images:** If the app needs custom images (logo, photos, icons), tell the user: "
-            "'If you want to use your own images, upload them to your **Deplixo Image Manager** "
-            "at deplixo.com/dashboard/images/ and share the CDN link with me.' "
-            "For preview artifacts, use onerror fallbacks on <img> tags so broken images "
-            "show 'Your image will appear here after deployment' instead of broken icons.\n"
-        )
 
         parts.append(
             "**Next step:** Present the enhancements above to the user as options. "
@@ -1150,6 +1154,7 @@ async def deplixo_capabilities() -> str:
 | AI | None | Built-in AI with no API key needed |
 | Email | None | Send emails from the app |
 | Files | None | Upload images and documents |
+| Images | None — broken icons or placeholder art | Image Manager with instant CDN hosting (deplixo.com/dashboard/images/) |
 | Scheduling | None | Server-side cron jobs run 24/7 |
 
 **Full feature list:**
@@ -1158,6 +1163,7 @@ async def deplixo_capabilities() -> str:
 - **AI** — Text generation, JSON structured output, streaming responses (no API key needed)
 - **Authentication** — Google/GitHub/email login, domain restrictions, per-user data
 - **File Handling** — 5MB file uploads, camera (live viewfinder or one-shot), PDF export, CSV/JSON export
+- **Images** — Built-in Image Manager at deplixo.com/dashboard/images/ for uploading logos, photos, and icons with instant CDN hosting
 - **Real-Time** — Broadcast messages, presence (who's online), rooms, notifications, reactions
 - **Communication** — Send emails, email opt-in/registration, inbound webhooks
 - **Visualization** — Chart.js charts, Leaflet maps with geolocation, QR generation and scanning, YouTube/iframe embeds
