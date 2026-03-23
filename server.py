@@ -639,9 +639,9 @@ async def deplixo_deploy(
 ) -> str:
     """Deploy a web app to Deplixo and get a live URL with real infrastructure.
 
-    Before calling, tell the user: "Deploying to Deplixo — this takes about
-    a minute. Please don't interrupt or navigate away until you see the
-    activation link!"
+    Before calling, tell the user: "Deploying to Deplixo — this may take
+    several minutes. Please don't interrupt or navigate away until you see
+    the activation link. Thank you for your patience."
 
     PREREQUISITE: Call deplixo_enhance first for NEW apps to identify which
     platform capabilities the app needs. Skip when updating an existing app
