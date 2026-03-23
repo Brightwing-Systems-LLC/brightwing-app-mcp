@@ -288,7 +288,7 @@ mcp = FastMCP(
 
         "### Image handling\n"
         "When a user wants to use their own images (logo, photo, banner, etc.) in their app:\n\n"
-        "1. Tell them to upload at **deplixo.com/dashboard/images/** (their Image Manager)\n"
+        "1. Tell them to upload at **deplixo.com/dashboard/images/** (their Deplixo Image Manager)\n"
         "2. They upload there, create any resize/crop variants they need, and copy the CDN URL\n"
         "3. They give you the URL (e.g. `https://cdn.deplixo.com/i/username/logo.png`)\n"
         "4. Use the URL directly in the HTML/CSS — no special handling needed\n\n"
@@ -296,6 +296,14 @@ mcp = FastMCP(
         "`assets` parameter of deplixo_deploy.\n\n"
         "NEVER try to read, encode, or embed image file data (base64, data URIs, file reads).\n"
         "NEVER ask users to upload images to external services like Imgur.\n\n"
+        "**Preview images in artifacts:** When using image URLs in an in-chat preview artifact,\n"
+        "the sandbox may block external images. ALWAYS add an onerror fallback so the user\n"
+        "sees a helpful placeholder instead of a broken image icon:\n"
+        "  <img src=\"https://cdn.deplixo.com/i/user/logo.png\"\n"
+        "       onerror=\"this.style.display='none';this.parentElement.insertAdjacentHTML('beforeend',\n"
+        "         '<div style=&quot;background:#1a1a2e;border:2px dashed #444;border-radius:8px;padding:20px;text-align:center;color:#888&quot;>Your image will appear here after deployment</div>')\"\n"
+        "       alt=\"User image\">\n"
+        "This ensures the preview looks clean. After deploy, the real SDK serves images normally.\n\n"
 
         "### NEVER do this\n"
         "- `// TODO: implement API call` -> Use deplixo.ai.prompt() or deplixo.proxy()\n"
@@ -681,9 +689,6 @@ async def deplixo_deploy(
     if files and "index.html" not in files and not (merge_files and app_id):
         return "Error: 'files' must include 'index.html'."
 
-    if not code and not files:
-        return "Error: Either 'code' or 'files' must be provided."
-
     # Pre-flight SDK validation — block if code uses non-existent methods
     preflight_error = _preflight_check(code, files)
     if preflight_error:
@@ -841,7 +846,9 @@ async def deplixo_deploy(
                 lines.append(f"  - {issue.get('method', '?')} (line ~{issue.get('line_hint', '?')}): {issue.get('fix', '')}")
             lines.append(
                 "\nValid collection methods: .add(value), .list(opts), .get(id), .update(id, value), "
-                ".remove(id), .set(key, value), .delete(id), .count(opts), .search(query), .onChange(cb), .offChange(cb)"
+                ".remove(id), .count(opts), .search(query), .onChange(cb), .offChange(cb) "
+                "— plus aliases: .set(key, value), .delete(id), .put(id, value), .doc(id), "
+                ".find(query), .save(value), .getAll(opts), .getOne(id), .fetchAll(opts)"
             )
             lines.append("\nFix the code and deploy again.")
             return '\n'.join(lines)
@@ -1084,6 +1091,14 @@ async def deplixo_enhance(
             for p in data["recommended_primitives"]:
                 parts.append(f"- {p}")
             parts.append("")
+
+        parts.append(
+            "**Images:** If the app needs custom images (logo, photos, icons), tell the user: "
+            "'If you want to use your own images, upload them to your **Deplixo Image Manager** "
+            "at deplixo.com/dashboard/images/ and share the CDN link with me.' "
+            "For preview artifacts, use onerror fallbacks on <img> tags so broken images "
+            "show 'Your image will appear here after deployment' instead of broken icons.\n"
+        )
 
         parts.append(
             "**Next step:** Present the enhancements above to the user as options. "
