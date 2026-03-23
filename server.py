@@ -1,5 +1,6 @@
 """Deplixo MCP Server - Deploy AI apps instantly."""
 import os
+import re
 import httpx
 from mcp.server.fastmcp import FastMCP
 from mcp.types import ToolAnnotations
@@ -77,6 +78,61 @@ def _format_suggestions(suggestions: dict) -> list[str]:
         "Please fix these issues and redeploy. The user expects a working app.",
     ])
     return lines
+
+
+# =============================================================================
+# Pre-flight SDK validation (blocks deploy for guaranteed-broken code)
+# =============================================================================
+
+# Methods that don't exist on collections even as compatibility aliases.
+# Aliases (.set, .delete, .put, .doc, .find, .save) ARE handled by the SDK.
+_INVALID_COLLECTION_METHODS = [
+    # Firebase-isms
+    (r'\.where\s*\(', '.where()', 'Use .list() with filtering or .search(query).'),
+    (r'\.orderBy\s*\(', '.orderBy()', 'Use .list({ sort_by: "field", sort_order: "desc" }).'),
+    (r'\.limit\s*\(', '.limit()', 'Use .list({ limit: N }).'),
+    (r'\.onSnapshot\s*\(', '.onSnapshot()', 'Use .onChange(callback) for real-time updates.'),
+    # MongoDB-isms
+    (r'\.findOne\s*\(', '.findOne()', 'Use .get(id) to retrieve a single record by ID.'),
+    (r'\.insertOne\s*\(', '.insertOne()', 'Use .add(value) to create a new record.'),
+    (r'\.insertMany\s*\(', '.insertMany()', 'Use multiple .add() calls.'),
+    (r'\.updateOne\s*\(', '.updateOne()', 'Use .update(id, value) to update a record.'),
+    (r'\.deleteOne\s*\(', '.deleteOne()', 'Use .remove(id) to delete a record.'),
+    (r'\.deleteMany\s*\(', '.deleteMany()', 'Use multiple .remove(id) calls.'),
+    # Generic wrong patterns
+    (r'\.create\s*\(', '.create()', 'Use .add(value) to create a new record.'),
+    (r'\.destroy\s*\(', '.destroy()', 'Use .remove(id) to delete a record.'),
+    (r'\.upsert\s*\(', '.upsert()', 'Use .set(keyOrId, value) for upsert, or .add()/.update() directly.'),
+]
+
+
+def _preflight_check(code: str, files: dict | None) -> str | None:
+    """Return error message if code has guaranteed-broken SDK usage, else None."""
+    full_code = '\n'.join((files or {}).values()) if files else (code or '')
+
+    # Only check if app actually uses collections
+    if 'deplixo.db.collection' not in full_code:
+        return None
+
+    issues = []
+    for pattern, method, fix in _INVALID_COLLECTION_METHODS:
+        match = re.search(pattern, full_code)
+        if match:
+            line_num = full_code[:match.start()].count('\n') + 1
+            issues.append(f"  - Line ~{line_num}: {method} does not exist on collections. {fix}")
+
+    if not issues:
+        return None
+
+    return (
+        "Deploy blocked — code uses collection methods that don't exist and will fail at runtime.\n\n"
+        "Issues found:\n" + '\n'.join(issues) + "\n\n"
+        "Valid collection methods: .add(value), .list(opts), .get(id), .update(id, value), "
+        ".remove(id), .set(key, value), .delete(id), .put(id, value), .doc(id), .find(query), "
+        ".save(value), .count(opts), .search(query), .onChange(cb), .offChange(cb)\n\n"
+        "Fix the code and deploy again."
+    )
+
 
 mcp = FastMCP(
     "Deplixo",
@@ -295,7 +351,10 @@ mcp = FastMCP(
         "  await recipes.remove(id)                             -> deletes item\n"
         "  recipes.onChange(({ action, id, value, author }) => { })  -> real-time SSE\n"
         "  recipes.offChange(handler)                               -> remove specific listener\n"
-        "  recipes.offChange()                                      -> remove all listeners\n\n"
+        "  recipes.offChange()                                      -> remove all listeners\n"
+        "Prefer these canonical methods. Compatibility aliases exist (.set, .delete, .put, .doc, .find, .save)\n"
+        "but the canonical methods above are preferred. Do NOT use Firebase/MongoDB methods like .where(),\n"
+        ".onSnapshot(), .findOne(), .insertOne(), .deleteOne() — these do NOT exist.\n\n"
 
         "### File Uploads\n"
         "  const result = await deplixo.upload(file)  -> { url, filename, size }\n"
@@ -320,7 +379,8 @@ mcp = FastMCP(
         "  deplixo.auth.user          -> current user object or null\n"
         "  deplixo.auth.isAuthenticated -> boolean\n"
         "  deplixo.auth.logout()      -> signs out and reloads\n"
-        "  deplixo.auth.onAuthChange(cb) -> callback when auth state changes\n\n"
+        "  deplixo.auth.onAuthChange(cb) -> callback when auth state changes\n"
+        "Aliases: .login(), .register(), .signIn(), .signOut(), .getUser() all work. Prefer .requireLogin()/.logout().\n\n"
         "When auth is enabled, `{ personal: true }` collections scope to the authenticated\n"
         "user's account (cross-device), not the browser cookie.\n\n"
 
@@ -336,7 +396,8 @@ mcp = FastMCP(
         "  const stream = deplixo.ai.stream(\"Write a story\");\n"
         "  for await (const chunk of stream) { outputEl.textContent += chunk; }\n"
         "No API key needed — uses the app owner's platform credits.\n"
-        "NEVER embed LLM API keys in source code.\n\n"
+        "NEVER embed LLM API keys in source code.\n"
+        "Aliases: .chat(), .generate(), .ask(), .complete() all map to .prompt(). Prefer .prompt().\n\n"
 
         "### Charts (Chart.js 4.x, lazy-loaded)\n"
         "  const chart = await deplixo.chart(containerEl, {\n"
@@ -406,7 +467,8 @@ mcp = FastMCP(
         "  deplixo.broadcast.send(\"cursor-move\", { x: 100, y: 200 });\n"
         "  deplixo.broadcast.on(\"cursor-move\", (data, senderId) => { ... });\n"
         "  deplixo.broadcast.off(\"cursor-move\");\n"
-        "Messages are ephemeral — not stored. Rate limit: 20/sec. Max: 4KB.\n\n"
+        "Messages are ephemeral — not stored. Rate limit: 20/sec. Max: 4KB.\n"
+        "Aliases: .emit()/.publish() map to .send(), .listen()/.subscribe() map to .on(), .unsubscribe() maps to .off(). Prefer canonical names.\n\n"
 
         "### Scheduled Tasks (server-side cron jobs)\n"
         "Pass a `cron` parameter when deploying. These run even when nobody has the app open.\n"
@@ -487,6 +549,7 @@ mcp = FastMCP(
         "- Identity modal prompts for display name on first write.\n\n"
 
         "## IMPORTANT RULES\n\n"
+        "- Prefer .add()/.update()/.remove() over .set()/.delete()/.put() — the latter exist as compatibility aliases but canonical methods are preferred. NEVER use Firebase/MongoDB methods like .where(), .onSnapshot(), .findOne(), .insertOne(), .deleteOne() — these DO NOT EXIST.\n"
         "- ALWAYS use deplixo.db.collection() for ANY persistent data — even for single-user apps. localStorage does NOT sync across devices.\n"
         "- NEVER use localStorage. Always use deplixo.db.collection() instead.\n"
         "- NEVER use base64/data URLs for images — use deplixo.upload()\n"
@@ -606,6 +669,11 @@ async def deplixo_deploy(
 
     if not code and not files:
         return "Error: Either 'code' or 'files' must be provided."
+
+    # Pre-flight SDK validation — block if code uses non-existent methods
+    preflight_error = _preflight_check(code, files)
+    if preflight_error:
+        return preflight_error
 
     payload: dict = {"title": title, "description": description}
     if files:
@@ -748,6 +816,23 @@ async def deplixo_deploy(
             if asset_warnings:
                 parts.extend(["", "Asset warnings:"] + [f"  - {w}" for w in asset_warnings])
             return "\n".join(parts)
+    elif response.status_code == 400:
+        try:
+            data = response.json()
+        except Exception:
+            data = {}
+        if data.get("error") == "deploy_blocked":
+            lines = ["Deploy blocked — code has SDK errors that will break at runtime:\n"]
+            for issue in data.get("issues", []):
+                lines.append(f"  - {issue.get('method', '?')} (line ~{issue.get('line_hint', '?')}): {issue.get('fix', '')}")
+            lines.append(
+                "\nValid collection methods: .add(value), .list(opts), .get(id), .update(id, value), "
+                ".remove(id), .set(key, value), .delete(id), .count(opts), .search(query), .onChange(cb), .offChange(cb)"
+            )
+            lines.append("\nFix the code and deploy again.")
+            return '\n'.join(lines)
+        error_text = response.text[:5000] if len(response.text) > 5000 else response.text
+        return f"Deployment failed (HTTP {response.status_code}): {error_text}"
     else:
         error_text = response.text[:5000] if len(response.text) > 5000 else response.text
         return f"Deployment failed (HTTP {response.status_code}): {error_text}"
