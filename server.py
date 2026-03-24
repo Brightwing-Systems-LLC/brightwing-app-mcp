@@ -75,6 +75,8 @@ def _format_suggestions(suggestions: dict) -> list[str]:
 
     lines.extend([
         "",
+        "SDK reference — check method signatures before fixing: https://deplixo.com/sdk",
+        "",
         "Please fix these issues and redeploy. The user expects a working app.",
     ])
     return lines
@@ -110,28 +112,251 @@ def _preflight_check(code: str, files: dict | None) -> str | None:
     """Return error message if code has guaranteed-broken SDK usage, else None."""
     full_code = '\n'.join((files or {}).values()) if files else (code or '')
 
-    # Only check if app actually uses collections
-    if 'deplixo.db.collection' not in full_code:
-        return None
-
     issues = []
-    for pattern, method, fix in _INVALID_COLLECTION_METHODS:
-        match = re.search(pattern, full_code)
-        if match:
-            line_num = full_code[:match.start()].count('\n') + 1
-            issues.append(f"  - Line ~{line_num}: {method} does not exist on collections. {fix}")
 
-    if not issues:
+    # Check for invalid collection methods (only if app uses collections)
+    if 'deplixo.db.collection' in full_code:
+        for pattern, method, fix in _INVALID_COLLECTION_METHODS:
+            match = re.search(pattern, full_code)
+            if match:
+                line_num = full_code[:match.start()].count('\n') + 1
+                issues.append(f"  - Line ~{line_num}: {method} does not exist on collections. {fix}")
+
+    # Check for fabricated relative image paths (these files don't exist)
+    _FAKE_IMAGE_PATTERNS = [
+        (r'src=["\'](?:images|assets|img|pics|photos)/[^"\']+\.(?:png|jpg|jpeg|gif|svg|webp)["\']', 'Relative image path'),
+        (r'url\(["\']?(?:images|assets|img|pics|photos)/[^"\')\s]+\.(?:png|jpg|jpeg|gif|svg|webp)["\']?\)', 'Relative image path in CSS'),
+    ]
+    fake_image_warnings = []
+    for pattern, label in _FAKE_IMAGE_PATTERNS:
+        for match in re.finditer(pattern, full_code, re.IGNORECASE):
+            line_num = full_code[:match.start()].count('\n') + 1
+            fake_image_warnings.append(
+                f"  - Line ~{line_num}: {label} '{match.group()}' — this file does not exist. "
+                "Use a real CDN URL from the Deplixo Image Manager (deplixo.com/dashboard/images/) "
+                "or use a placeholder div."
+            )
+
+    if not issues and not fake_image_warnings:
         return None
 
-    return (
-        "Deploy blocked — code uses collection methods that don't exist and will fail at runtime.\n\n"
-        "Issues found:\n" + '\n'.join(issues) + "\n\n"
-        "Valid collection methods: .add(value), .list(opts), .get(id), .update(id, value), "
-        ".remove(id), .set(key, value), .delete(id), .put(id, value), .doc(id), .find(query), "
-        ".save(value), .getAll(opts), .getOne(id), .fetchAll(opts), .count(opts), .search(query), .onChange(cb), .offChange(cb)\n\n"
-        "Fix the code and deploy again."
-    )
+    parts = []
+    if issues:
+        parts.append(
+            "Deploy blocked — code uses collection methods that don't exist and will fail at runtime.\n\n"
+            "Issues found:\n" + '\n'.join(issues) + "\n\n"
+            "Valid collection methods: .add(value), .list(opts), .get(id), .update(id, value), "
+            ".remove(id), .set(key, value), .delete(id), .put(id, value), .doc(id), .find(query), "
+            ".save(value), .getAll(opts), .getOne(id), .fetchAll(opts), .count(opts), .search(query), .onChange(cb), .offChange(cb)\n\n"
+            "SDK reference with correct usage: https://deplixo.com/sdk\n\n"
+            "Fix the code and deploy again."
+        )
+
+    if fake_image_warnings:
+        if issues:
+            parts.append("")
+        parts.append(
+            "⚠ Fabricated image paths detected — these files don't exist on the server:\n\n"
+            + '\n'.join(fake_image_warnings) + "\n\n"
+            "To use custom images: upload at deplixo.com/dashboard/images/ and use the CDN URL.\n"
+            "Or pass web URLs in the `assets` parameter and Deplixo will download and host them.\n"
+            "Fix the image paths and deploy again."
+        )
+
+    return '\n'.join(parts)
+
+
+# =============================================================================
+# SDK feature detection — scan code for deplixo.* usage
+# =============================================================================
+
+_SDK_FEATURE_PATTERNS = [
+    ("deplixo.db.collection", "Collections (persistent data)"),
+    ("deplixo.ai.prompt", "AI (LLM calls)"),
+    ("deplixo.ai.stream", "AI (streaming)"),
+    ("deplixo.auth.requireLogin", "Authentication"),
+    ("deplixo.upload", "File uploads"),
+    ("deplixo.proxy", "Proxy (external APIs)"),
+    ("deplixo.email.send", "Email"),
+    ("deplixo.email.register", "Email opt-in"),
+    ("deplixo.chart", "Charts"),
+    ("deplixo.map", "Maps"),
+    ("deplixo.qr", "QR codes"),
+    ("deplixo.pdf", "PDF export"),
+    ("deplixo.sound", "Sound effects"),
+    ("deplixo.export", "Data export"),
+    ("deplixo.camera", "Camera"),
+    ("deplixo.editor", "Rich text editor"),
+    ("deplixo.share", "Sharing"),
+    ("deplixo.presence", "Presence (who's online)"),
+    ("deplixo.broadcast", "Broadcast (real-time)"),
+    ("deplixo.notifications", "Notifications"),
+    ("deplixo.rooms", "Rooms (multiplayer)"),
+    ("deplixo.webhooks", "Webhooks"),
+    ("deplixo.cron", "Scheduled tasks"),
+    ("deplixo.embed", "Embeds"),
+    ("deplixo.reactions", "Reactions"),
+    ("deplixo.locks", "Distributed locks"),
+    ("deplixo.forms", "Form validation"),
+    ("deplixo.timers", "Timers"),
+    ("deplixo.sql", "SQL (direct DB)"),
+]
+
+
+def _detect_sdk_features(code: str) -> list[str]:
+    """Scan code for deplixo.* calls and return list of detected feature names."""
+    if not code:
+        return []
+    seen = []
+    for pattern, label in _SDK_FEATURE_PATTERNS:
+        if pattern in code:
+            seen.append(label)
+    return seen
+
+
+# =============================================================================
+# SDK snippets for enhance response — keyed by primitive name
+# =============================================================================
+
+_SDK_SNIPPETS = {
+    "deplixo.db.collection": (
+        "  ```js\n"
+        "  const col = deplixo.db.collection(\"items\", { personal: false });\n"
+        "  await col.add({ title: \"Hello\" });          // -> { id, value, author }\n"
+        "  const items = await col.list();              // -> [{ id, value, author }]\n"
+        "  await col.update(id, { title: \"Updated\" }); // merges fields\n"
+        "  col.onChange(({ action, id, value }) => { }); // real-time\n"
+        "  ```"
+    ),
+    "deplixo.ai": (
+        "  ```js\n"
+        "  const answer = await deplixo.ai.prompt(\"Generate 5 quiz questions\");\n"
+        "  const result = await deplixo.ai.prompt({\n"
+        "    system: \"Return JSON: { items: [...] }\",\n"
+        "    user: userInput, json: true\n"
+        "  });\n"
+        "  ```"
+    ),
+    "deplixo.auth": (
+        "  ```js\n"
+        "  // Deploy with auth_enabled=true\n"
+        "  const user = await deplixo.auth.requireLogin(); // -> {id, email, name, role}\n"
+        "  if (user.role === 'admin') { showAdminPanel(); }\n"
+        "  deplixo.auth.logout();\n"
+        "  ```"
+    ),
+    "deplixo.upload": (
+        "  ```js\n"
+        "  const { url, filename } = await deplixo.upload(fileInput.files[0]);\n"
+        "  await col.add({ photo: url }); // store URL in collection\n"
+        "  ```"
+    ),
+    "deplixo.proxy": (
+        "  ```js\n"
+        "  const data = await deplixo.proxy(\"https://api.example.com/data\", {\n"
+        "    headers: { \"Authorization\": \"Bearer ${API_KEY}\" }\n"
+        "  }); // -> { status: 200, body: {...} }\n"
+        "  ```"
+    ),
+    "deplixo.email": (
+        "  ```js\n"
+        "  await deplixo.email.send({\n"
+        "    to: \"user@example.com\", subject: \"Hello\",\n"
+        "    body: \"Plain text\", html: \"<h1>HTML</h1>\"\n"
+        "  }); // 2 credits per email\n"
+        "  ```"
+    ),
+    "deplixo.presence": (
+        "  ```js\n"
+        "  await deplixo.presence.join({ name: \"Alice\" });\n"
+        "  const users = await deplixo.presence.list();\n"
+        "  deplixo.presence.onChange(({ action, userId, data }) => { });\n"
+        "  ```"
+    ),
+    "deplixo.broadcast": (
+        "  ```js\n"
+        "  deplixo.broadcast.send(\"typing\", { user: \"Alice\" });\n"
+        "  deplixo.broadcast.on(\"typing\", (data, sender) => { });\n"
+        "  ```"
+    ),
+    "deplixo.notifications": (
+        "  ```js\n"
+        "  await deplixo.notifications.send(\"userId\", { title: \"New!\", body: \"...\" });\n"
+        "  const { items, unread_count } = await deplixo.notifications.list();\n"
+        "  ```"
+    ),
+    "deplixo.chart": (
+        "  ```js\n"
+        "  await deplixo.chart(containerEl, {\n"
+        "    type: \"bar\", data: { labels: [\"A\",\"B\"], datasets: [{ data: [10,20] }] }\n"
+        "  });\n"
+        "  ```"
+    ),
+    "deplixo.map": (
+        "  ```js\n"
+        "  const map = await deplixo.map(containerEl, { center: [40.7, -74], zoom: 12 });\n"
+        "  map.addMarker(40.7, -74, \"New York\");\n"
+        "  ```"
+    ),
+    "deplixo.rooms": (
+        "  ```js\n"
+        "  const room = deplixo.rooms.join(\"lobby-1\");\n"
+        "  const msgs = room.collection(\"messages\", { personal: false });\n"
+        "  room.broadcast.send(\"typing\", { user: \"Alice\" });\n"
+        "  ```"
+    ),
+    "cron": (
+        "  ```js\n"
+        "  // Deploy with: cron=[{\"name\": \"daily\", \"schedule\": \"0 9 * * *\",\n"
+        "  //   \"action\": \"event\", \"config\": {\"event_type\": \"daily-task\"}}]\n"
+        "  ```"
+    ),
+    "deplixo.webhooks": (
+        "  ```js\n"
+        "  deplixo.webhooks.on(\"github\", payload => { console.log(payload); });\n"
+        "  // External POST to: deplixo.com/hooks/{app-id}/github/\n"
+        "  ```"
+    ),
+    "deplixo.qr": (
+        "  ```js\n"
+        "  await deplixo.qr.generate(el, \"https://example.com\", { size: 200 });\n"
+        "  const text = await deplixo.qr.scan(); // camera-based\n"
+        "  ```"
+    ),
+    "deplixo.pdf": (
+        "  ```js\n"
+        "  await deplixo.pdf.create(el, { filename: \"report.pdf\" });\n"
+        "  ```"
+    ),
+    "deplixo.camera": (
+        "  ```js\n"
+        "  const blob = await deplixo.camera.photo({ facing: \"environment\" });\n"
+        "  const { url } = await deplixo.upload(new File([blob], \"photo.jpg\"));\n"
+        "  ```"
+    ),
+    "deplixo.sound": (
+        "  ```js\n"
+        "  deplixo.sound.play(\"@ping\"); // @ping @pop @click @ding @error @success @whoosh @beep\n"
+        "  ```"
+    ),
+    "deplixo.export": (
+        "  ```js\n"
+        "  deplixo.export.csv(data, \"report.csv\");\n"
+        "  deplixo.export.json(data, \"data.json\");\n"
+        "  ```"
+    ),
+    "deplixo.share": (
+        "  ```js\n"
+        "  await deplixo.share({ title: \"My App\", url: location.href });\n"
+        "  ```"
+    ),
+    "deplixo.editor": (
+        "  ```js\n"
+        "  const editor = deplixo.editor(el, { placeholder: \"Write...\" });\n"
+        "  editor.getContent(); editor.onChange(html => { });\n"
+        "  ```"
+    ),
+}
 
 
 mcp = FastMCP(
@@ -158,8 +383,9 @@ mcp = FastMCP(
         "For Vue, Svelte, Three.js, etc., use their CDN builds the same way.\n\n"
 
         "## Preview mode\n\n"
-        "If the user asks for a preview before deploying, or says 'show me first', "
-        "build the app as an artifact with an INLINE mock of the Deplixo SDK at the "
+        "ALWAYS show the user an in-chat preview artifact BEFORE deploying. "
+        "This lets them see the app, request changes, and approve before it goes live. "
+        "Build the app as an artifact with an INLINE mock of the Deplixo SDK at the "
         "TOP of the HTML (before any app code). The mock should implement "
         "deplixo.db.collection (in-memory with localStorage), deplixo.auth "
         "(fake user), deplixo.user, and any other deplixo.* APIs the app uses — "
@@ -360,6 +586,35 @@ mcp = FastMCP(
         "Prefer these canonical methods. Compatibility aliases exist (.set, .delete, .put, .doc, .find, .save, .getAll, .getOne, .fetchAll)\n"
         "but the canonical methods above are preferred. Do NOT use Firebase/MongoDB methods like .where(),\n"
         ".onSnapshot(), .findOne(), .insertOne(), .deleteOne() — these do NOT exist.\n\n"
+
+        "### Collection Data Shape\n"
+        "Every entry returned by .list(), .get(), .add(), and .onChange() wraps user data in a `value` property.\n"
+        "User fields are INSIDE `value` — access them via `entry.value.fieldName`, NOT `entry.fieldName`.\n\n"
+        "  // When you add:\n"
+        "  await recipes.add({ title: \"Pasta\", servings: 4 })\n\n"
+        "  // The stored/returned shape is:\n"
+        "  {\n"
+        "    id: \"abc123\",                        // unique ID\n"
+        "    value: { title: \"Pasta\", servings: 4 },  // YOUR data lives here\n"
+        "    author: { id: \"user1\", name: \"Alice\" }   // who created it (multi-user)\n"
+        "  }\n\n"
+        "  // So when iterating:\n"
+        "  const items = await recipes.list();\n"
+        "  items.forEach(entry => {\n"
+        "    console.log(entry.value.title);     // ✓ CORRECT: \"Pasta\"\n"
+        "    console.log(entry.title);           // ✗ WRONG: undefined\n"
+        "    console.log(entry.author.name);     // ✓ \"Alice\" (multi-user apps)\n"
+        "  });\n\n"
+        "  // onChange callback receives the same shape:\n"
+        "  recipes.onChange(({ action, id, value, author }) => {\n"
+        "    // `value` is already the unwrapped user data\n"
+        "    console.log(value.title);           // ✓ CORRECT: \"Pasta\"\n"
+        "  });\n\n"
+        "  // .get() returns a single entry with the same shape:\n"
+        "  const entry = await recipes.get(someId);\n"
+        "  console.log(entry.value.title);       // ✓ CORRECT\n\n"
+        "COMMON MISTAKE: Accessing `entry.title` instead of `entry.value.title`.\n"
+        "This returns `undefined` and is the #1 cause of \"blank screen\" bugs.\n\n"
 
         "### File Uploads\n"
         "  const result = await deplixo.upload(file)  -> { url, filename, size }\n"
@@ -570,6 +825,7 @@ mcp = FastMCP(
         "- Identity modal prompts for display name on first write.\n\n"
 
         "## IMPORTANT RULES\n\n"
+        "- ALWAYS access user data via `entry.value.fieldName`, NOT `entry.fieldName`. Collection entries wrap your data in a `value` property — `entry.title` is undefined, `entry.value.title` is correct. In onChange callbacks, `value` is already unwrapped: `onChange(({ action, id, value }) => { value.title; })`.\n"
         "- Prefer .add()/.update()/.remove()/.list()/.get() over aliases. Aliases (.set, .delete, .put, .doc, .find, .save, .getAll, .getOne, .fetchAll) work but canonical methods are preferred. NEVER use Firebase/MongoDB methods like .where(), .onSnapshot(), .findOne(), .insertOne(), .deleteOne() — these DO NOT EXIST.\n"
         "- NEVER build custom role/permission systems in collections — use deplixo.auth.user.role (platform-managed)\n"
         "- NEVER pass { shared: true } or other invented options to collections — the only valid option is { personal: true/false }\n"
@@ -612,7 +868,13 @@ mcp = FastMCP(
         "(deplixo.com/edit/...), use deplixo_read_source to read the source, "
         "then deplixo_deploy with app_id and claim_token to push updates.\n\n"
         "Large apps: Deploy in chunks with merge_files=True. First call with "
-        "index.html, subsequent calls with additional files. Existing files are preserved."
+        "index.html, subsequent calls with additional files. Existing files are preserved.\n\n"
+
+        "## SDK Reference\n\n"
+        "Full SDK reference with method signatures, data types, and examples:\n"
+        "https://deplixo.com/sdk\n\n"
+        "Consult this before writing any deplixo.* calls to avoid hallucinating "
+        "non-existent methods or wrong parameter shapes."
     ),
 )
 
@@ -661,8 +923,14 @@ async def deplixo_deploy(
     SDK mock if present. The server strips it automatically and injects the
     real SDK.
 
-    For the full SDK reference (collections, uploads, AI, auth, charts, maps,
-    email, cron, etc.), see the system instructions.
+    Full SDK reference with method signatures, data types, and examples:
+    https://deplixo.com/sdk
+
+    CRITICAL — Collection data shape: .list(), .get(), and .add() return entries
+    where user data is wrapped in a `value` property. Access fields via
+    entry.value.title, NOT entry.title. In onChange callbacks, `value` is already
+    destructured: onChange(({ action, id, value, author }) => value.title).
+    Getting this wrong causes blank/undefined data — it is the #1 deploy bug.
 
     IMAGES: Never ask users to upload images in chat. Direct them to the
     Deplixo Image Manager at deplixo.com/dashboard/images/ to upload and
@@ -760,6 +1028,13 @@ async def deplixo_deploy(
         prod_features = data.get("production_features", [])
         asset_warnings = data.get("asset_warnings", [])
 
+        # Detect if app uses images — remind about Image Manager
+        full_code = '\n'.join((files or {}).values()) if files else (code or '')
+        _has_images = bool(
+            re.search(r'<img\b', full_code, re.IGNORECASE)
+            or re.search(r'background-image', full_code, re.IGNORECASE)
+        )
+
         if updated:
             # App was updated in-place (same URL)
             parts = [
@@ -789,6 +1064,14 @@ async def deplixo_deploy(
                 parts.extend(_format_production_features(prod_features))
             if asset_warnings:
                 parts.extend(["", "Asset warnings:"] + [f"  - {w}" for w in asset_warnings])
+            if _has_images:
+                parts.extend([
+                    "",
+                    "IMAGE REMINDER: If the app could benefit from the user's own images "
+                    "(logo, photos, icons), tell them: 'Want to add your own images? "
+                    "Upload them at deplixo.com/dashboard/images/ and share the CDN link "
+                    "with me.' Never use fabricated paths like images/photo.png.",
+                ])
             return "\n".join(parts)
 
         # --- First deploy of this app ---
@@ -849,6 +1132,14 @@ async def deplixo_deploy(
                 parts.extend(_format_production_features(prod_features))
             if asset_warnings:
                 parts.extend(["", "Asset warnings:"] + [f"  - {w}" for w in asset_warnings])
+            if _has_images:
+                parts.extend([
+                    "",
+                    "IMAGE REMINDER: If the app could benefit from the user's own images "
+                    "(logo, photos, icons), tell them: 'Want to add your own images? "
+                    "Upload them at deplixo.com/dashboard/images/ and share the CDN link "
+                    "with me.' Never use fabricated paths like images/photo.png.",
+                ])
             return "\n".join(parts)
     elif response.status_code == 400:
         try:
@@ -865,6 +1156,7 @@ async def deplixo_deploy(
                 "— plus aliases: .set(key, value), .delete(id), .put(id, value), .doc(id), "
                 ".find(query), .save(value), .getAll(opts), .getOne(id), .fetchAll(opts)"
             )
+            lines.append("\nSDK reference with correct usage: https://deplixo.com/sdk")
             lines.append("\nFix the code and deploy again.")
             return '\n'.join(lines)
         error_text = response.text[:5000] if len(response.text) > 5000 else response.text
@@ -956,6 +1248,16 @@ async def deplixo_read_source(url: str) -> str:
             ]
             if data.get('description'):
                 parts.append(f"Description: {data['description']}")
+
+            # Detect SDK features used in the app
+            all_code = data.get("code", "")
+            for _, content in data.get("files", {}).items():
+                if content:
+                    all_code += "\n" + content
+            detected = _detect_sdk_features(all_code)
+            if detected:
+                parts.append(f"SDK features detected: {', '.join(detected)}")
+
             parts.append("")
 
             # Main code
@@ -977,6 +1279,10 @@ async def deplixo_read_source(url: str) -> str:
                     f'To update this app, use deplixo_deploy with app_id="{data.get("hash_id", hash_id)}" '
                     f'and claim_token="{token_param}".',
                 ])
+
+            parts.append(
+                "\nSDK reference: https://deplixo.com/sdk"
+            )
 
             return "\n".join(parts)
 
@@ -1142,15 +1448,39 @@ async def deplixo_enhance(
 
         if data.get("recommended_primitives"):
             parts.append(f"**Recommended pattern:** {pattern} app\n")
-            parts.append("**Primitives to use:**")
+            parts.append("**Primitives to use (with SDK snippets):**\n")
             for p in data["recommended_primitives"]:
-                parts.append(f"- {p}")
+                snippet = _SDK_SNIPPETS.get(p, "")
+                if snippet:
+                    parts.append(f"- **{p}**\n{snippet}")
+                else:
+                    parts.append(f"- {p}")
+            parts.append("")
+
+        # Data model suggestion from LLM
+        if data.get("data_model"):
+            parts.append("**Suggested data model:**\n")
+            for coll in data["data_model"]:
+                name = coll.get("name", "?")
+                personal = coll.get("personal", False)
+                fields = ", ".join(coll.get("fields", []))
+                parts.append(
+                    f"- `deplixo.db.collection(\"{name}\", {{ personal: {str(personal).lower()} }})` "
+                    f"— fields: {fields}"
+                )
             parts.append("")
 
         parts.append(
-            "**Next step:** Present the enhancements above to the user as options. "
-            "Ask the questions. Then build the app using deplixo_deploy with the "
-            "features they choose. Do NOT build a plain artifact — use Deplixo so "
+            "**Full SDK reference:** https://deplixo.com/sdk\n"
+            "Consult this for exact method signatures before writing any deplixo.* calls.\n"
+        )
+
+        parts.append(
+            "**Next step:** ALWAYS show the user an in-chat preview artifact first. "
+            "Present the enhancements above to the user as options. "
+            "Ask the questions. Then build the app as a preview artifact (with the "
+            "inline SDK mock), let the user review it, and deploy with deplixo_deploy "
+            "when they approve. Do NOT build a plain artifact — use Deplixo so "
             "the app has a real URL, persistent data, and the features identified above."
         )
 
@@ -1231,6 +1561,7 @@ async def deplixo_query(
     claim_token: str,
     collection: str = "",
     sql: str = "",
+    list_collections: bool = False,
     limit: int = 50,
 ) -> str:
     """Query data stored in a deployed Deplixo app's database.
@@ -1245,11 +1576,16 @@ async def deplixo_query(
 
     Requires the claim_token from a previous deploy (proves ownership).
 
+    TIP: If you don't know what collections exist, call with list_collections=True
+    first to discover the schema. Then query specific collections.
+
     Args:
         app_id: The app's hash ID (e.g. "abcd-efgh")
         claim_token: The claim token from the deploy response
         collection: Name of the collection to query (e.g. "recipes", "tasks")
         sql: Raw SQL query (alternative to collection)
+        list_collections: Set True to discover all collections with entry counts
+                          and last-modified timestamps (schema discovery mode).
         limit: Max entries to return (default 50, max 200)
     """
     payload = {
@@ -1257,12 +1593,14 @@ async def deplixo_query(
         "claim_token": claim_token,
         "limit": min(limit, 200),
     }
-    if collection:
+    if list_collections:
+        payload["list_collections"] = True
+    elif collection:
         payload["collection"] = collection
     elif sql:
         payload["sql"] = sql
     else:
-        return "Error: Specify either 'collection' or 'sql' to query."
+        return "Error: Specify 'collection', 'sql', or 'list_collections=True' to query."
 
     try:
         async with httpx.AsyncClient(timeout=30.0) as client:
@@ -1275,10 +1613,33 @@ async def deplixo_query(
             return f"Query failed: {data.get('error', resp.text[:500])}"
 
         data = resp.json()
+
+        # Schema discovery response
+        if "collections" in data:
+            parts = [f"## Collections in {data.get('app_id', app_id)}\n"]
+            colls = data.get("collections", [])
+            if not colls:
+                parts.append("No collections found (app has no data yet).")
+            else:
+                for c in colls:
+                    last_mod = c.get("last_modified", "never")
+                    parts.append(
+                        f"- **{c['name']}**: {c.get('count', 0)} entries "
+                        f"(last modified: {last_mod or 'never'})"
+                    )
+                parts.append("")
+                parts.append("Query a specific collection with collection=\"name\" to see entries.")
+            return "\n".join(parts)
+
         parts = [f"## Data from {data.get('app_id', app_id)}\n"]
 
         if "collection" in data:
-            parts.append(f"**Collection**: {data['collection']} ({data.get('total', '?')} total entries)\n")
+            last_mod = data.get("last_modified", "")
+            last_mod_str = f", last modified: {last_mod}" if last_mod else ""
+            parts.append(
+                f"**Collection**: {data['collection']} "
+                f"({data.get('total', '?')} total entries{last_mod_str})\n"
+            )
             entries = data.get("entries", [])
             if not entries:
                 parts.append("No entries found.")
