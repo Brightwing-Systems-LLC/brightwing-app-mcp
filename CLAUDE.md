@@ -27,7 +27,20 @@ Container connects to bws_network, served via Caddy at mcp.deplixo.com.
 
 The `instructions=` block and `deplixo_deploy` tool docstring in `server.py` are
 the **single source of truth** for what AI clients (Claude, ChatGPT, etc.) know
-about the Deplixo SDK. If an AI doesn't know about a feature, it won't use it.
+about the Deplixo SDK when using the MCP connector. If an AI doesn't know about
+a feature, it won't use it.
+
+**CRITICAL: This file is ONE of THREE places that MUST be updated when the SDK
+changes.** The other two are in the main deplixo repo — see the "SDK
+Documentation — KEEP ALL THREE IN SYNC" section in `deplixo/CLAUDE.md`. A
+feature that exists in code but not in docs is invisible to AI builders.
+
+**The three files:**
+1. `deplixo/templates/pages/sdk.txt` — Public SDK reference at `deplixo.com/sdk/`
+   (what AIs read when users point them at the URL)
+2. **This repo: `server.py`** — MCP instructions + tool docstring (what AIs see
+   via the MCP connector)
+3. `deplixo/js/sdk/core.js` + `legos/` — The actual SDK code
 
 **Whenever a new SDK feature ships in the main deplixo repo**, the MCP server
 MUST be updated:
