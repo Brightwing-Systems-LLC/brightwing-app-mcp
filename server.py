@@ -552,7 +552,7 @@ mcp = FastMCP(
         "- PDF export: use `deplixo.pdf.create()` — do NOT include html2pdf manually\n\n"
 
         "### How to replace common stubs\n"
-        "- App needs AI/LLM calls -> use deplixo.ai.prompt() (platform credits, no API key needed)\n"
+        "- App needs AI/LLM calls -> use deplixo.ai.prompt({ system, user, json: true }) — ALWAYS use system for persona/format, user for variable input, json:true for structured output\n"
         "- App needs to save data -> use deplixo.db.collection() (real-time, cross-device sync)\n"
         "- App needs external APIs -> use deplixo.proxy() with ${SECRET_NAME} placeholders\n"
         "- App needs search -> use collection queries with search option\n"
@@ -615,9 +615,12 @@ mcp = FastMCP(
 
         "### ALWAYS do this\n"
         "- If the app generates content (names, stories, quizzes, plans, recipes):\n"
-        "  -> Use deplixo.ai.prompt() with a specific system prompt and the user's input\n"
+        "  -> Use deplixo.ai.prompt({ system: '...persona + format...', user: variableInput, json: true })\n"
+        "  -> ALWAYS split: system prompt for persona/format/constraints, user for the variable input\n"
+        "  -> ALWAYS use json:true for structured output — it returns a parsed object, not a string\n"
+        "  -> Add variety instructions in system ('be creative', 'never repeat') since calls are stateless\n"
         "- If the app searches or looks up information:\n"
-        "  -> Use deplixo.ai.prompt() with instructions to return structured results\n"
+        "  -> Use deplixo.ai.prompt({ system: '...', user: query, json: true }) for structured results\n"
         "  -> OR use deplixo.proxy() to call a real API\n"
         "- If the app collects and saves data:\n"
         "  -> Use deplixo.db.collection() with appropriate personal/multi-user mode\n"
