@@ -7,6 +7,11 @@ services:
       target: runtime
     container_name: deplixomcp_web
     command: ["python", "http_server.py"]
+    logging:
+      driver: syslog
+      options:
+        syslog-address: "udp://127.0.0.1:514"
+        tag: "{{.Name}}"
     environment:
       FASTMCP_HOST: "0.0.0.0"
       FASTMCP_PORT: "8000"
