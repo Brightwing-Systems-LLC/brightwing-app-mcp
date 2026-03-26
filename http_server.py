@@ -1,5 +1,6 @@
 """HTTP transport for the Deplixo MCP server."""
 import logging
+import os
 import time
 from pathlib import Path
 
@@ -79,13 +80,20 @@ class RequestLoggingMiddleware:
 mcp.settings.host = "0.0.0.0"
 mcp.settings.port = 8000
 mcp.settings.streamable_http_path = "/"
+
+_is_dev = os.environ.get("DEPLIXO_API_URL", "").startswith("http://localhost")
+
 mcp.settings.transport_security = TransportSecuritySettings(
     enable_dns_rebinding_protection=True,
-    allowed_hosts=["mcp.deplixo.com"],
+    allowed_hosts=[
+        "mcp.deplixo.com",
+        *(["localhost", "127.0.0.1", "localhost:8000", "127.0.0.1:8000"] if _is_dev else []),
+    ],
     allowed_origins=[
         "https://mcp.deplixo.com",
         "https://claude.ai",
         "https://*.claude.ai",
+        *(["http://localhost:8000", "http://127.0.0.1:8000", "http://localhost:8895", "http://127.0.0.1:8895"] if _is_dev else []),
     ],
 )
 
