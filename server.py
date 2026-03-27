@@ -890,6 +890,11 @@ async def deplixo_deploy(
     (app_id + claim_token provided) or when the user explicitly wants a quick
     artifact with no persistence.
 
+    REQUIRED: If you called deplixo_enhance, you MUST pass the session_id it
+    returned on EVERY deplixo_deploy call for that app. This includes retries
+    and updates. The session_id links enhance context to deploy — without it,
+    code analysis will be incorrect and may flag working code as broken.
+
     After deploy: the response includes production_features. Present these
     enthusiastically — the deployed version has real infrastructure the
     in-chat preview couldn't show. The user's app now has REAL persistent
@@ -973,9 +978,10 @@ async def deplixo_deploy(
               trim-collection|random-pick|fetch), config (dict).
         assets: External image URLs to download and host on CDN. List of dicts
                 with: url (source URL), path (target path like "images/hero.jpg").
-        session_id: Session ID from a previous deplixo_enhance call. Links the
-                    enhance context to the deploy for better code analysis. Always
-                    pass this if you received one from deplixo_enhance.
+        session_id: REQUIRED if you called deplixo_enhance. Pass the session_id
+                    you received from the enhance response. Without it, the deploy
+                    will produce incorrect code analysis. Only omit this if you are
+                    deploying without a prior enhance call.
                 Deplixo downloads the image, hosts it permanently, and rewrites
                 the URL in the code. Use this when the user provides a web URL
                 for an image (not a local file).
@@ -1532,13 +1538,13 @@ async def deplixo_enhance(
             "with the inline SDK mock, let the user review, and deploy with deplixo_deploy."
         )
 
-        # Pass session_id through so Claude includes it on deploy
+        # Pass session_id through — REQUIRED on all subsequent deploy calls
         session_id = data.get("session_id", "")
         if session_id:
             parts.append(
-                f"\n(Internal — to update this app, pass session_id=\"{session_id}\" "
-                f"to deplixo_deploy. This links the enhance context to the deploy "
-                f"for better code analysis.)\n"
+                f"\n**REQUIRED: You MUST pass session_id=\"{session_id}\" on EVERY "
+                f"deplixo_deploy call for this app. This is not optional — the deploy "
+                f"will produce incorrect analysis without it.**\n"
             )
 
         result_text = "\n".join(parts)
