@@ -42,13 +42,16 @@ duplicating it.
 1. `deplixo/js/sdk/core.js` + `js/sdk/legos/` — The actual SDK code
 2. `deplixo/templates/pages/sdk.txt` — Authoritative SDK reference (fetched by AIs)
 3. `deplixo/primitives/<name>/` — **Registry files (snippets, anti-patterns,
-   manifests). These take PRIORITY over `_SDK_SNIPPETS` in server.py.** The
-   enhance tool returns these directly to AI clients. If you update server.py
-   but not the primitive files, AIs see the OLD snippet.
-   - `snippet.js` — Code pattern AIs copy-paste (HIGHEST priority)
+   manifests, checks). These take PRIORITY over `_SDK_SNIPPETS` in server.py.**
+   The enhance tool returns these directly to AI clients. If you update
+   server.py but not the primitive files, AIs see the OLD snippet.
+   - `snippet.js` — Code pattern AIs copy-paste (HIGHEST priority).
+     All `await` calls must be inside async functions.
    - `anti_patterns.md` — Mistakes shown as "CRITICAL mistakes to avoid"
    - `manifest.yaml` — Method descriptions, deploy flags
    - `reference.md` — Extended reference docs
+   - `checks.yaml` — Scoring assertions for the prompt tester. Regex-based
+     checks run against generated code after deploy.
 4. **This repo: `server.py`** — `_SDK_SNIPPETS` (fallback), IMPORTANT RULES,
    "How to replace common stubs", Critical Quick Reference
 5. `deplixo/api/v1/enhance.py` — Enhance LLM prompt and exclusion rules
