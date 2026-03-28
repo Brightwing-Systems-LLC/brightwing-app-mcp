@@ -812,13 +812,13 @@ mcp = FastMCP(
         "Saving is free (no credit card), takes seconds, and gives the user "
         "3 free days. Keeping the app ($3, first app free!) makes it permanent with "
         "500 platform credits, a dashboard, and the ability to keep editing.\n\n"
-        "Updating apps: When the deploy response includes app_id and claim_token, "
-        "keep them in context. Pass app_id and claim_token to update in-place.\n\n"
+        "Updating apps: When you have app_id and claim_token from a previous deploy, "
+        "use deplixo_edit to make changes. The edit tool accepts search-and-replace "
+        "blocks — only changed content is transmitted. Use deplixo_deploy only for "
+        "new apps or complete rewrites.\n\n"
         "Edit links: When a user pastes a Deplixo edit link "
         "(deplixo.com/edit/...), use deplixo_read_source to read the source, "
-        "then deplixo_deploy with app_id and claim_token to push updates.\n\n"
-        "Large apps: Deploy in chunks with merge_files=True. First call with "
-        "index.html, subsequent calls with additional files. Existing files are preserved.\n\n"
+        "then deplixo_edit with app_id and claim_token to apply changes.\n\n"
 
         "## IMPORTANT RULES\n\n"
         "- ALWAYS await deplixo.ready before accessing any SDK method.\n"
@@ -839,6 +839,10 @@ mcp = FastMCP(
         "- EVERY <img> in a preview MUST have an onerror fallback for the sandbox.\n"
         "- NEVER deploy TODO comments, placeholder functions, or hardcoded sample data.\n"
         "- NEVER use Firebase/MongoDB methods (.where, .onSnapshot, .findOne) — they don't exist.\n"
+        "- When updating an existing app, use deplixo_edit (NOT deplixo_deploy) for changes.\n"
+        "- When using deplixo_edit, include 2-3 lines of surrounding context in search strings to ensure uniqueness.\n"
+        "- If a deplixo_edit fails, use the returned file content to retry with corrected search strings — do NOT call read_source.\n"
+        "- Most apps are single-file: use file=\"index.html\" for all edits.\n"
         "- For the full list of rules, patterns, and anti-patterns, see the SDK reference."
     ),
 )
@@ -876,6 +880,10 @@ async def deplixo_deploy(
     Before calling, tell the user: "Deploying to Deplixo — this may take
     several minutes. Please don't interrupt or navigate away until you see
     the save link. Thank you for your patience."
+
+    NOTE: For updating an existing app, prefer deplixo_edit over deplixo_deploy.
+    The edit tool accepts search-and-replace blocks and is much faster. Use
+    deplixo_deploy for new apps or complete rewrites only.
 
     PREREQUISITE: Call deplixo_enhance first for NEW apps to identify which
     platform capabilities the app needs. Skip when updating an existing app
@@ -1068,7 +1076,7 @@ async def deplixo_deploy(
                     "their app. Saving is free — no credit card required.",
                 ])
             parts.append("")
-            update_line = f'To update again, pass app_id="{hash_id}"'
+            update_line = f'To make changes, use deplixo_edit with app_id="{hash_id}"'
             if resp_claim_token:
                 update_line += f' and claim_token="{resp_claim_token}".'
             else:
@@ -1088,6 +1096,20 @@ async def deplixo_deploy(
                     "Upload them at https://deplixo.com/dashboard/images/ and share the CDN link "
                     "with me.' Never use fabricated paths like images/photo.png.",
                 ])
+            # Feature gap feedback
+            _feature_gaps = data.get('feature_gaps', [])
+            _missing_cols = data.get('missing_collections', [])
+            if _feature_gaps or _missing_cols:
+                parts.append("")
+                parts.append("FEATURES NOT YET IMPLEMENTED (from the enhance plan):")
+                for _gap in _feature_gaps:
+                    parts.append(f"  - {_gap['primitive']}: {_gap['reason']}")
+                for _col in _missing_cols:
+                    _fields = ', '.join(_col.get('fields', []))
+                    parts.append(f"  - Missing collection \"{_col['name']}\" (fields: {_fields})")
+                parts.append("")
+                parts.append("Ask the user if they'd like you to add these features "
+                             "via deplixo_edit.")
             deploy_result = "\n".join(parts)
             if session_id:
                 await _log_mcp_call(session_id, "deploy",
@@ -1126,8 +1148,9 @@ async def deplixo_deploy(
             if resp_claim_token:
                 parts.extend([
                     "",
-                    f'(Internal — to update this app, pass app_id="{hash_id}" '
-                    f'and claim_token="{resp_claim_token}".)',
+                    f'(Internal — to make changes, use deplixo_edit with app_id="{hash_id}" '
+                    f'and claim_token="{resp_claim_token}". Use deplixo_deploy only for '
+                    f'complete rewrites.)',
                 ])
             if suggestions:
                 parts.extend(_format_suggestions(suggestions))
@@ -1135,6 +1158,20 @@ async def deplixo_deploy(
                 parts.extend(_format_production_features(prod_features))
             if asset_warnings:
                 parts.extend(["", "Asset warnings:"] + [f"  - {w}" for w in asset_warnings])
+            # Feature gap feedback
+            _feature_gaps = data.get('feature_gaps', [])
+            _missing_cols = data.get('missing_collections', [])
+            if _feature_gaps or _missing_cols:
+                parts.append("")
+                parts.append("FEATURES NOT YET IMPLEMENTED (from the enhance plan):")
+                for _gap in _feature_gaps:
+                    parts.append(f"  - {_gap['primitive']}: {_gap['reason']}")
+                for _col in _missing_cols:
+                    _fields = ', '.join(_col.get('fields', []))
+                    parts.append(f"  - Missing collection \"{_col['name']}\" (fields: {_fields})")
+                parts.append("")
+                parts.append("Ask the user if they'd like you to add these features "
+                             "via deplixo_edit.")
             deploy_result = "\n".join(parts)
             if session_id:
                 await _log_mcp_call(session_id, "deploy",
@@ -1149,7 +1186,7 @@ async def deplixo_deploy(
             if resp_claim_token:
                 parts.extend([
                     "",
-                    f'To update this app, pass app_id="{hash_id}" '
+                    f'To make changes, use deplixo_edit with app_id="{hash_id}" '
                     f'and claim_token="{resp_claim_token}".',
                 ])
             if suggestions:
@@ -1166,6 +1203,20 @@ async def deplixo_deploy(
                     "Upload them at https://deplixo.com/dashboard/images/ and share the CDN link "
                     "with me.' Never use fabricated paths like images/photo.png.",
                 ])
+            # Feature gap feedback
+            _feature_gaps = data.get('feature_gaps', [])
+            _missing_cols = data.get('missing_collections', [])
+            if _feature_gaps or _missing_cols:
+                parts.append("")
+                parts.append("FEATURES NOT YET IMPLEMENTED (from the enhance plan):")
+                for _gap in _feature_gaps:
+                    parts.append(f"  - {_gap['primitive']}: {_gap['reason']}")
+                for _col in _missing_cols:
+                    _fields = ', '.join(_col.get('fields', []))
+                    parts.append(f"  - Missing collection \"{_col['name']}\" (fields: {_fields})")
+                parts.append("")
+                parts.append("Ask the user if they'd like you to add these features "
+                             "via deplixo_edit.")
             deploy_result = "\n".join(parts)
             if session_id:
                 await _log_mcp_call(session_id, "deploy",
@@ -1195,6 +1246,235 @@ async def deplixo_deploy(
     else:
         error_text = response.text[:5000] if len(response.text) > 5000 else response.text
         return f"Deployment failed (HTTP {response.status_code}): {error_text}"
+
+
+@mcp.tool(
+    annotations=ToolAnnotations(
+        readOnlyHint=False,
+        destructiveHint=False,
+        openWorldHint=True,
+        idempotentHint=False,
+    )
+)
+async def deplixo_edit(
+    app_id: str,
+    claim_token: str,
+    edits: list[dict] | None = None,
+    new_files: dict[str, str] | None = None,
+    delete_files: list[str] | None = None,
+    title: str = "",
+    description: str = "",
+    session_id: str = "",
+) -> str:
+    """Apply targeted edits to an existing Deplixo app without redeploying full source.
+
+    Use this instead of deplixo_deploy when making changes to an existing app.
+    Each edit specifies a search string (must match exactly once in the file)
+    and a replacement string. Only changed content is transmitted — much faster
+    than redeploying everything.
+
+    WHEN TO USE:
+    - Updating an existing app (you have app_id + claim_token)
+    - Making targeted changes (CSS tweaks, bug fixes, feature additions)
+    - Adding missing features to a deployed app
+
+    WHEN TO USE deplixo_deploy INSTEAD:
+    - Creating a brand new app (no app_id yet)
+    - Complete rewrite where the entire code changes
+
+    HOW TO WRITE EDITS:
+    - Each edit needs: file (filename), search (exact text to find), replace (text to substitute)
+    - Most apps are single-file — use file="index.html" for all edits
+    - The search string must appear EXACTLY ONCE in the file
+    - Use enough surrounding context to make the search string unique (2-3 lines)
+    - Multiple edits are applied sequentially — each sees the result of prior edits
+    - Edits are atomic: if any edit fails, none are applied
+    - For entirely new files, use new_files dict
+    - To remove files, list them in delete_files
+
+    EXAMPLE — change a color and update heading:
+      edits=[
+        {"file": "index.html", "search": "color: blue;", "replace": "color: red;"},
+        {"file": "index.html", "search": "<h1>Old Title</h1>", "replace": "<h1>New Title</h1>"}
+      ]
+
+    EXAMPLE — add a new function before the closing </script> tag:
+      edits=[
+        {"file": "index.html",
+         "search": "  </script>",
+         "replace": "  function newFeature() { /* ... */ }\\n  </script>"}
+      ]
+
+    If an edit fails (search string not found), the response includes the current
+    file content so you can construct correct search strings and retry.
+
+    Args:
+        app_id: The app's hash ID (e.g. "abcd-efgh") from a previous deploy or read_source.
+        claim_token: The claim token from a previous deploy or read_source.
+        edits: List of search-and-replace edits. Each: {"file": str, "search": str, "replace": str}
+        new_files: Dict of {filepath: content} for entirely new files to add.
+        delete_files: List of filepaths to remove from the app.
+        title: Optional new title for the app.
+        description: Optional new description.
+        session_id: Session ID from a previous deplixo_enhance call.
+    """
+    # Validate inputs
+    if not app_id:
+        return "Error: app_id is required."
+    if not claim_token:
+        return "Error: claim_token is required."
+
+    has_edits = edits and len(edits) > 0
+    has_new = new_files and len(new_files) > 0
+    has_delete = delete_files and len(delete_files) > 0
+    if not has_edits and not has_new and not has_delete:
+        return "Error: At least one of edits, new_files, or delete_files is required."
+
+    payload = {
+        "app_id": app_id,
+        "claim_token": claim_token,
+    }
+    if edits:
+        payload["edits"] = edits
+    if new_files:
+        payload["new_files"] = new_files
+    if delete_files:
+        payload["delete_files"] = delete_files
+    if title:
+        payload["title"] = title
+    if description:
+        payload["description"] = description
+    if session_id:
+        payload["session_id"] = session_id
+
+    timeout = httpx.Timeout(connect=10.0, read=30.0, write=10.0, pool=10.0)
+    try:
+        async with httpx.AsyncClient(timeout=timeout) as client:
+            response = await client.post(
+                f"{DEPLIXO_API_URL}/api/v1/edit",
+                json=payload,
+            )
+    except httpx.TimeoutException:
+        return "Error: Edit request timed out. Please try again."
+    except httpx.ConnectError:
+        return "Error: Could not connect to Deplixo API. Please try again in a moment."
+    except httpx.HTTPError as e:
+        return f"Error: HTTP request failed: {str(e)[:500]}"
+
+    if response.status_code == 200:
+        data = response.json()
+        url = data.get("url", "")
+        hash_id = data.get("hash_id", "")
+        files_changed = data.get("files_changed", [])
+        files_added = data.get("files_added", [])
+        files_deleted = data.get("files_deleted", [])
+        claim_url = data.get("claim_url")
+        resp_claim_token = data.get("claim_token", claim_token)
+        suggestions = data.get("suggestions")
+        prod_features = data.get("production_features", [])
+
+        parts = [f"App updated at: {url}"]
+        if files_changed:
+            parts.append(f"Files changed: {', '.join(files_changed)}")
+        if files_added:
+            parts.append(f"Files added: {', '.join(files_added)}")
+        if files_deleted:
+            parts.append(f"Files deleted: {', '.join(files_deleted)}")
+
+        if claim_url:
+            parts.extend([
+                "",
+                "REMINDER: This app has NOT been saved yet and will be permanently "
+                "deleted in less than 1 hour.",
+                f"Save link: {claim_url}",
+                "",
+                "Show the save link to the user again so they don't lose "
+                "their app. Saving is free — no credit card required.",
+            ])
+
+        parts.append("")
+        parts.append(
+            f'To make more changes, use deplixo_edit with app_id="{hash_id}" '
+            f'and claim_token="{resp_claim_token}".'
+        )
+
+        if suggestions:
+            parts.extend(_format_suggestions(suggestions))
+        if prod_features:
+            parts.extend(_format_production_features(prod_features))
+
+        # Feature gap feedback
+        feature_gaps = data.get('feature_gaps', [])
+        missing_cols = data.get('missing_collections', [])
+        if feature_gaps or missing_cols:
+            parts.append("")
+            parts.append("FEATURES NOT YET IMPLEMENTED (from the enhance plan):")
+            for gap in feature_gaps:
+                parts.append(f"  - {gap['primitive']}: {gap['reason']}")
+            for col in missing_cols:
+                fields = ', '.join(col.get('fields', []))
+                parts.append(f"  - Missing collection \"{col['name']}\" (fields: {fields})")
+            parts.append("")
+            parts.append("Ask the user if they'd like you to add these features "
+                         "via deplixo_edit.")
+
+        edit_result = "\n".join(parts)
+        if session_id:
+            await _log_mcp_call(session_id, "edit",
+                                {"app_id": app_id, "edits_count": len(edits or [])},
+                                edit_result, app_id=hash_id)
+        return edit_result
+
+    elif response.status_code in (409, 422):
+        data = response.json()
+        failed_edit = data.get("failed_edit", {})
+        file_content = data.get("file_content", "")
+        reason = failed_edit.get("reason", "unknown")
+        failed_file = failed_edit.get("file", "unknown")
+
+        if reason == "ambiguous":
+            count = failed_edit.get("count", "multiple")
+            parts = [
+                f"Edit failed: the search string was found {count} times in {failed_file}.",
+                "Use a longer, more unique search string that includes surrounding context.",
+                "",
+                f"Here is the current content of {failed_file}:",
+                "",
+                file_content,
+                "",
+                "Use the content above to construct a unique search string and retry "
+                "with deplixo_edit.",
+            ]
+        else:
+            parts = [
+                f"Edit failed: could not find the search string in {failed_file}.",
+                "",
+                f"Here is the current content of {failed_file}:",
+                "",
+                file_content,
+                "",
+                "Use the content above to construct correct search strings and retry "
+                "with deplixo_edit.",
+            ]
+        return "\n".join(parts)
+
+    elif response.status_code == 400:
+        try:
+            data = response.json()
+        except Exception:
+            data = {}
+        if data.get("error") == "deploy_blocked":
+            lines = ["Edit blocked — code has SDK errors that will break at runtime:\n"]
+            for issue in data.get("issues", []):
+                lines.append(f"  - {issue.get('method', '?')} (line ~{issue.get('line_hint', '?')}): {issue.get('fix', '')}")
+            lines.append("\nSDK reference: https://deplixo.com/sdk")
+            lines.append("\nFix the issues in your edits and try again.")
+            return '\n'.join(lines)
+        error_text = response.text[:5000] if len(response.text) > 5000 else response.text
+        return f"Edit failed (HTTP {response.status_code}): {error_text}"
+    else:
+        error_text = response.text[:5000] if len(response.text) > 5000 else response.text
+        return f"Edit failed (HTTP {response.status_code}): {error_text}"
 
 
 @mcp.tool(
@@ -1308,8 +1588,11 @@ async def deplixo_read_source(url: str) -> str:
             if token_param:
                 parts.extend([
                     "",
-                    f'To update this app, use deplixo_deploy with app_id="{data.get("hash_id", hash_id)}" '
-                    f'and claim_token="{token_param}".',
+                    f'To make changes, use deplixo_edit with app_id="{data.get("hash_id", hash_id)}" '
+                    f'and claim_token="{token_param}". '
+                    f'Each edit is a search-and-replace block: '
+                    f'{{"file": "index.html", "search": "old text", "replace": "new text"}}. '
+                    f'Use deplixo_deploy with app_id and claim_token only for complete rewrites.',
                 ])
 
             parts.append(
