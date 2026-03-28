@@ -1076,12 +1076,18 @@ async def deplixo_deploy(
                     "their app. Saving is free — no credit card required.",
                 ])
             parts.append("")
-            update_line = f'To make changes, use deplixo_edit with app_id="{hash_id}"'
             if resp_claim_token:
-                update_line += f' and claim_token="{resp_claim_token}".'
+                parts.append(
+                    f'For small changes, use deplixo_edit with app_id="{hash_id}" '
+                    f'and claim_token="{resp_claim_token}" (search-and-replace — faster). '
+                    f'For large changes or rewrites, deplixo_deploy with app_id and claim_token works too.'
+                )
             else:
-                update_line += "."
-            parts.append(update_line)
+                parts.append(
+                    f'For small changes, use deplixo_edit with app_id="{hash_id}" '
+                    f'(search-and-replace — faster). '
+                    f'For large changes or rewrites, deplixo_deploy with app_id works too.'
+                )
             if suggestions:
                 parts.extend(_format_suggestions(suggestions))
             if prod_features:
