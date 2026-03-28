@@ -48,7 +48,9 @@ duplicating it.
    - `snippet.js` — Code pattern AIs copy-paste (HIGHEST priority).
      All `await` calls must be inside async functions.
    - `anti_patterns.md` — Mistakes shown as "CRITICAL mistakes to avoid"
-   - `manifest.yaml` — Method descriptions, deploy flags
+   - `manifest.yaml` — Method descriptions, deploy flags, and `learning:` section
+     (tagline, description, why, use_cases, prompt, color) that powers `/building-blocks/`.
+     If the primitive surfaces multiple user-facing features, include a `capabilities:` list.
    - `reference.md` — Extended reference docs
    - `checks.yaml` — Scoring assertions for the prompt tester. Regex-based
      checks run against generated code after deploy.
