@@ -310,7 +310,6 @@ def _detect_sdk_features(code: str, registry: list[dict] | None = None) -> list[
             ("deplixo.cron", "Scheduled tasks"),
             ("deplixo.embed", "Embeds"),
             ("deplixo.reactions", "Reactions"),
-            ("deplixo.locks", "Distributed locks"),
             ("deplixo.forms", "Form validation"),
             ("deplixo.timers", "Timers"),
             ("deplixo.sql", "SQL (direct DB)"),
@@ -530,13 +529,6 @@ _SDK_SNIPPETS = {
         "  await deplixo.reactions.toggle(\"post-123\", \"👍\");\n"
         "  const { counts } = await deplixo.reactions.get(\"post-123\");\n"
         "  deplixo.reactions.onChange(({ target, counts }) => { });\n"
-        "  ```"
-    ),
-    "deplixo.locks": (
-        "  ```js\n"
-        "  const lock = await deplixo.locks.acquire(\"edit-doc-1\", { ttl: 30 });\n"
-        "  // ... do work ...\n"
-        "  await deplixo.locks.release(\"edit-doc-1\");\n"
         "  ```"
     ),
     "deplixo.forms": (
@@ -814,11 +806,11 @@ mcp = FastMCP(
 
         "## Post-deploy behavior\n\n"
         "ALWAYS include a `description` when deploying — powers social preview cards.\n\n"
-        "CRITICAL: After deploying a NEW app, you MUST show the user the activation "
-        "link as a clickable link. Do NOT show the app URL — only show the activation link. "
-        "Unactivated apps expire after 1 HOUR then are permanently deleted. "
-        "Activation is free (no credit card), takes seconds, and gives the user "
-        "a 3-day trial. Keeping the app ($3, first app free!) makes it permanent with "
+        "CRITICAL: After deploying a NEW app, you MUST show the user the save "
+        "link as a clickable link. Do NOT show the app URL — only show the save link. "
+        "Unsaved apps expire after 1 HOUR then are permanently deleted. "
+        "Saving is free (no credit card), takes seconds, and gives the user "
+        "3 free days. Keeping the app ($3, first app free!) makes it permanent with "
         "500 platform credits, a dashboard, and the ability to keep editing.\n\n"
         "Updating apps: When the deploy response includes app_id and claim_token, "
         "keep them in context. Pass app_id and claim_token to update in-place.\n\n"
@@ -883,7 +875,7 @@ async def deplixo_deploy(
 
     Before calling, tell the user: "Deploying to Deplixo — this may take
     several minutes. Please don't interrupt or navigate away until you see
-    the activation link. Thank you for your patience."
+    the save link. Thank you for your patience."
 
     PREREQUISITE: Call deplixo_enhance first for NEW apps to identify which
     platform capabilities the app needs. Skip when updating an existing app
@@ -1065,15 +1057,15 @@ async def deplixo_deploy(
                 f"App updated successfully at: {url}",
             ]
             if claim_url:
-                # Still unactivated — remind about activation
+                # Still unsaved — remind about saving
                 parts.extend([
                     "",
-                    "REMINDER: This app has NOT been activated yet and will be permanently "
+                    "REMINDER: This app has NOT been saved yet and will be permanently "
                     "deleted in less than 1 hour.",
-                    f"Activation link: {claim_url}",
+                    f"Save link: {claim_url}",
                     "",
-                    "Show the activation link to the user again so they don't lose "
-                    "their app. Activation is free — no credit card required.",
+                    "Show the save link to the user again so they don't lose "
+                    "their app. Saving is free — no credit card required.",
                 ])
             parts.append("")
             update_line = f'To update again, pass app_id="{hash_id}"'
@@ -1105,24 +1097,24 @@ async def deplixo_deploy(
 
         # --- First deploy of this app ---
         if claim_url:
-            # New app — activation link is the primary output
+            # New app — save link is the primary output
             parts = [
-                "App deployed! Here is the activation link:",
+                "App deployed! Here is the save link:",
                 "",
                 f"  {claim_url}",
                 "",
                 "INSTRUCTIONS FOR YOUR RESPONSE:",
-                "1. Show ONLY the activation link above to the user — do NOT show the "
-                "   app URL. The activation page has a live preview of the app.",
-                "2. Tell the user: \"Click this link to activate your app.\"",
+                "1. Show ONLY the save link above to the user — do NOT show the "
+                "   app URL. The save page has a live preview of the app.",
+                "2. Tell the user: \"Click this link to save your app.\"",
                 "3. Explain: The app will be PERMANENTLY DELETED in 1 hour if "
-                "   not activated. Activation is free and takes seconds — no credit "
+                "   not saved. Saving is free and takes seconds — no credit "
                 "   card required. They can create a free account or sign in.",
-                "4. Mention: Once activated, they get a 3-day trial. Keeping the app ($3, "
+                "4. Mention: Once saved, they get 3 free days. Keeping the app ($3, "
                 "   first app free!) makes it permanent with 500 platform credits.",
                 "5. Mention: They also get a dashboard, analytics, and can keep "
                 "   editing the app with you.",
-                "6. Do NOT say \"here is your app URL\" — the activation link IS the "
+                "6. Do NOT say \"here is your app URL\" — the save link IS the "
                 "   link to show. It includes a live preview of the running app.",
                 "7. If the app could benefit from custom images, tell the user: "
                 "   'Want to add your own images? Upload them at "
@@ -1150,7 +1142,7 @@ async def deplixo_deploy(
                                     deploy_result, app_id=hash_id)
             return deploy_result
         else:
-            # App was deployed by an authenticated user (already activated)
+            # App was deployed by an authenticated user (already saved)
             parts = [
                 f"App deployed at: {url}",
             ]
@@ -1620,7 +1612,7 @@ async def deplixo_capabilities() -> str:
 **Communication** — Send emails, email opt-in/registration, inbound webhooks
 **Visualization** — Chart.js charts, Leaflet maps with geolocation, QR generation and scanning, YouTube/iframe embeds
 **Scheduling** — Server-side cron jobs that run even when no one has the app open
-**Other** — Sound effects, rich text editor, sharing, access codes, timers, distributed locks, form validation"""
+**Other** — Sound effects, rich text editor, sharing, access codes, timers, form validation"""
 
     return f"""## Deplixo Platform Capabilities
 
@@ -1702,7 +1694,7 @@ async def deplixo_query(
             resp = await client.post(f"{DEPLIXO_API_URL}/api/v1/query", json=payload)
 
         if resp.status_code == 403:
-            return "Error: Invalid activation token."
+            return "Error: Invalid save token."
         if resp.status_code != 200:
             data = resp.json() if resp.headers.get("content-type", "").startswith("application/json") else {}
             return f"Query failed: {data.get('error', resp.text[:500])}"

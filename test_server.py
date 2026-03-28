@@ -168,7 +168,7 @@ async def test_deploy_update_forbidden():
     """Updating without valid claim_token returns an error."""
     mock_response = MagicMock()
     mock_response.status_code = 403
-    mock_response.text = "Valid claim_token required to update unclaimed app"
+    mock_response.text = "Valid claim_token required to update unsaved app"
 
     with patch("server.httpx.AsyncClient") as mock_client_cls:
         mock_client = AsyncMock()

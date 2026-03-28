@@ -14,11 +14,11 @@ These examples demonstrate the `deplixo_deploy` tool across common use cases. Ea
 
 I'll build you a weightlifting tracker app and deploy it to Deplixo. Let me start by reading the relevant skill files. Now let me build the app. I'll go with a bold, industrial-meets-modern aesthetic — think iron plates and gym chalk vibes with clean data presentation.
 
-Your **Iron Log** weightlifting tracker is ready! Click this link to claim your app:
+Your **Iron Log** weightlifting tracker is ready! Click this link to save your app:
 
 https://deplixo.com/claim/a2509c9f36d9dce5f5f45acd8bdd8188c96493b1ab793ee86d320f359159aa68/
 
-The app will be **permanently deleted in 1 hour** if not claimed. Claiming is free and takes seconds — no credit card required. Once claimed, you get a permanent URL, a dashboard, and the ability to keep editing the app with me.
+The app will be **permanently deleted in 1 hour** if not saved. Saving is free and takes seconds — no credit card required. Once saved, you get 3 free days, a dashboard, and the ability to keep editing the app with me.
 
 Here's what's packed in:
 
@@ -45,11 +45,11 @@ The whole aesthetic is dark, industrial — Bebas Neue headers, warm orange acce
 
 I'll create a polished pomodoro timer with ambient sound options and deploy it to Deplixo.
 
-Your **Deep Focus** pomodoro timer is ready! Click this link to claim your app:
+Your **Deep Focus** pomodoro timer is ready! Click this link to save your app:
 
 https://deplixo.com/claim/7b3e1a4f92c8d0e6f1a5b9c3d7e2f8a4b6c0d9e3f5a1b7c2d8e4f0a6b3c9d5/
 
-The app will be **permanently deleted in 1 hour** if not claimed. Claiming is free — no credit card required. Once claimed, you'll get a permanent URL you can share with your team.
+The app will be **permanently deleted in 1 hour** if not saved. Saving is free — no credit card required. Once saved, you'll get 3 free days and a shareable URL for your team.
 
 Features:
 
@@ -74,11 +74,11 @@ Want me to add custom timer durations or a task list?
 
 I'll build a kanban board with drag-and-drop using React and deploy it as a multi-file app to Deplixo.
 
-Your **FlowBoard** kanban app is ready! Click this link to claim your app:
+Your **FlowBoard** kanban app is ready! Click this link to save your app:
 
 https://deplixo.com/claim/d4a8c2e6f0b3d7a1c5e9f2b6d0a4c8e3f7b1d5a9c3e7f0b4d8a2c6e0f3b7d1/
 
-The app will be **permanently deleted in 1 hour** if not claimed. Claiming is free and takes seconds — no credit card required. Once claimed, you get a permanent URL and dashboard.
+The app will be **permanently deleted in 1 hour** if not saved. Saving is free and takes seconds — no credit card required. Once saved, you get 3 free days, a dashboard, and a shareable URL.
 
 Built with React via CDN (no build tools needed). Here's what you get:
 
@@ -132,11 +132,11 @@ What would you like to change? Theme swap, different default program, new featur
 
 I've rebuilt it as a running tracker and deployed the remix to Deplixo.
 
-Your **Run Log** is ready! Click this link to claim your app:
+Your **Run Log** is ready! Click this link to save your app:
 
 https://deplixo.com/claim/e5f1a3b7c9d2e6f0a4b8c1d5e9f3a7b0c4d8e2f6a0b3c7d1e5f9a2b6c0d4e8/
 
-The app will be **permanently deleted in 1 hour** if not claimed. Claiming is free — no credit card required. Once claimed, you get a permanent URL and dashboard.
+The app will be **permanently deleted in 1 hour** if not saved. Saving is free — no credit card required. Once saved, you get 3 free days, a dashboard, and a shareable URL.
 
 Forked from: https://deplixo.com/ckty-zktl/
 

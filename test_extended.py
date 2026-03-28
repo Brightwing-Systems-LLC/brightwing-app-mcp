@@ -96,7 +96,7 @@ class TestDeployResponseFormatting:
             client_instance.__aexit__ = AsyncMock(return_value=False)
             MockClient.return_value = client_instance
             result = await deplixo_deploy(code="<html></html>")
-            assert "activation link" in result.lower()
+            assert "save link" in result.lower()
             assert "claim/tok_123" in result
 
     @pytest.mark.asyncio
@@ -248,7 +248,7 @@ class TestQuery:
             client_instance.__aexit__ = AsyncMock(return_value=False)
             MockClient.return_value = client_instance
             result = await deplixo_query(app_id="abcd-efgh", claim_token="bad", collection="items")
-            assert "Invalid activation token" in result
+            assert "Invalid save token" in result
 
     @pytest.mark.asyncio
     async def test_collection_success(self):
