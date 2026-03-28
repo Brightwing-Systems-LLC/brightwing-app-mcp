@@ -1293,7 +1293,8 @@ async def deplixo_edit(
     - Most apps are single-file — use file="index.html" for all edits
     - The search string must appear EXACTLY ONCE in the file
     - Use enough surrounding context to make the search string unique (2-3 lines)
-    - Multiple edits are applied sequentially — each sees the result of prior edits
+    - All edits are matched against the ORIGINAL file — not the result of prior edits
+    - Multiple edits to the same file must not overlap (target different regions)
     - Edits are atomic: if any edit fails, none are applied
     - For entirely new files, use new_files dict
     - To remove files, list them in delete_files
