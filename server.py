@@ -551,6 +551,29 @@ _SDK_SNIPPETS = {
         "  await deplixo.cron.pause(\"daily\");\n"
         "  ```"
     ),
+    "triggers": (
+        "  ```json\n"
+        "  // Deploy with: triggers=[...]\n"
+        "  // Example: email the app owner when a new order is added\n"
+        "  {\n"
+        "    \"name\": \"notify-new-order\",\n"
+        "    \"on\": \"collection.add\",\n"
+        "    \"collection\": \"orders\",\n"
+        "    \"actions\": [\n"
+        "      {\n"
+        "        \"type\": \"email\",\n"
+        "        \"to\": \"owner\",\n"
+        "        \"subject\": \"New order received\",\n"
+        "        \"body\": \"A new order was placed: {{value.item}} ({{value.quantity}}x)\"\n"
+        "      }\n"
+        "    ]\n"
+        "  }\n"
+        "  // Event types: collection.add, collection.update, collection.remove,\n"
+        "  //   webhook.receive, auth.signup, auth.login, cron\n"
+        "  // Action types: email, collection.add, collection.update,\n"
+        "  //   collection.remove, notification, ai, webhook.send, broadcast, log\n"
+        "  ```"
+    ),
 }
 
 
@@ -701,6 +724,7 @@ mcp = FastMCP(
         "- App needs email signups/newsletter -> use deplixo.email.register() + .isRegistered()\n"
         "- App needs external event handling -> use deplixo.webhooks.on(name, handler) for inbound webhooks\n"
         "- App needs scheduled/recurring tasks -> pass `cron` parameter with job definitions (server-side, runs even when nobody's online)\n"
+        "- App needs server-side automations (when X happens, do Y) -> use `triggers` deploy config. NEVER build polling loops or setTimeout chains for automation.\n"
         "- App needs access restriction -> pass `access_code` parameter (users must enter code to access the app)\n"
         "- App needs user login/auth -> pass `auth_enabled=True` AND use deplixo.auth.requireLogin() in code\n"
         "- App needs user accounts -> pass `auth_enabled=True` AND use deplixo.auth.requireLogin() in code\n"
@@ -831,7 +855,7 @@ mcp = FastMCP(
         "- NEVER embed LLM API keys — use deplixo.ai.prompt().\n"
         "- NEVER include CDN scripts for Chart.js, Leaflet, etc. — the SDK lazy-loads them.\n"
         "- NEVER build custom login forms — use deplixo.auth.requireLogin().\n"
-        "- NEVER build name/username input fields — the SDK handles identity automatically via a built-in modal for multi-user apps and via OAuth for auth-enabled apps.\n"
+        "- NEVER build name/username/display-name input fields — the platform shows an identity modal automatically on page load for multi-user apps (personal: false). Building your own creates a confusing double-prompt. Use deplixo.user.name to read the display name after await deplixo.ready. For auth apps: use deplixo.auth.user.name (from OAuth login).\n"
         "- NEVER build custom role systems — use deplixo.auth.user.role.\n"
         "- NEVER use base64/data URLs for images — use deplixo.upload().\n"
         "- NEVER ask users to upload images in chat — direct them to https://deplixo.com/dashboard/images/.\n"
@@ -839,6 +863,7 @@ mcp = FastMCP(
         "- EVERY <img> in a preview MUST have an onerror fallback for the sandbox.\n"
         "- NEVER deploy TODO comments, placeholder functions, or hardcoded sample data.\n"
         "- NEVER use Firebase/MongoDB methods (.where, .onSnapshot, .findOne) — they don't exist.\n"
+        "- NEVER build client-side polling loops for automation — use `triggers` deploy config for server-side 'when X happens, do Y' patterns.\n"
         "- When updating an existing app, use deplixo_edit (NOT deplixo_deploy) for changes.\n"
         "- When using deplixo_edit, include 2-3 lines of surrounding context in search strings to ensure uniqueness.\n"
         "- If a deplixo_edit fails, use the returned file content to retry with corrected search strings — do NOT call read_source.\n"
@@ -871,6 +896,7 @@ async def deplixo_deploy(
     auth_enabled: bool = False,
     auth_allowed_domains: list[str] | None = None,
     cron: list[dict] | None = None,
+    triggers: list[dict] | None = None,
     assets: list[dict] | None = None,
     session_id: str = "",
 ) -> str:
@@ -976,6 +1002,14 @@ async def deplixo_deploy(
         cron: Server-side scheduled tasks. List of dicts with: name (str),
               schedule (cron expression), action (event|clear-collection|
               trim-collection|random-pick|fetch), config (dict).
+        triggers: Server-side automations ("when X happens, do Y"). List of
+              dicts, each with: name (str), on (event type), collection
+              (optional str), condition (optional dict), actions (list of
+              action dicts with type + config).
+              Event types: collection.add, collection.update,
+              collection.remove, webhook.receive, auth.signup, auth.login, cron.
+              Action types: email, collection.add, collection.update,
+              collection.remove, notification, ai, webhook.send, broadcast, log.
         assets: External image URLs to download and host on CDN. List of dicts
                 with: url (source URL), path (target path like "images/hero.jpg").
         session_id: REQUIRED if you called deplixo_enhance. Pass the session_id
@@ -1021,6 +1055,8 @@ async def deplixo_deploy(
         payload["auth_allowed_domains"] = auth_allowed_domains
     if cron:
         payload["cron"] = cron
+    if triggers:
+        payload["triggers"] = triggers
     if assets:
         payload["assets"] = assets
     if session_id:
