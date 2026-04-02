@@ -804,10 +804,11 @@ mcp = FastMCP(
         "- App needs external event handling -> use deplixo.webhooks.on(name, handler) for inbound webhooks\n"
         "- App needs scheduled/recurring tasks -> pass `cron` parameter with job definitions (server-side, runs even when nobody's online). NEVER use setInterval/setTimeout — they only work while the tab is open.\n"
         "- App needs server-side automations (when X happens, do Y) -> use `triggers` deploy config. NEVER build polling loops or setTimeout chains for automation.\n"
-        "- App needs access restriction -> pass `access_code` parameter (users must enter code to access the app)\n"
-        "- App needs user login/auth -> pass `auth_enabled=True` AND use deplixo.auth.requireLogin() in code\n"
-        "- App needs user accounts -> pass `auth_enabled=True` AND use deplixo.auth.requireLogin() in code\n"
-        "- App needs admin/moderator roles -> use deplixo.auth.user.role (platform-managed). Tell the user to assign roles in the Deplixo dashboard Roles tab\n"
+        "- App needs access restriction (group/shared) -> pass `app_mode='shared'`. Access code is auto-generated. Users enter name + access code on one screen.\n"
+        "- App needs user login/auth -> pass `app_mode='authenticated'` AND use deplixo.auth.requireLogin() in code\n"
+        "- App needs user accounts -> pass `app_mode='authenticated'` AND use deplixo.auth.requireLogin() in code\n"
+        "- App needs admin/moderator roles -> REQUIRES `app_mode='authenticated'`. Use deplixo.auth.user.role (platform-managed). Tell the user to assign roles in the Deplixo dashboard Roles tab\n"
+        "- NEVER combine access_code with app_mode='authenticated' — they are mutually exclusive modes\n"
         "- App needs who's-online / presence -> use deplixo.presence.join/list/onChange (Redis-backed, real-time)\n"
         "- App needs real-time messaging between users -> use deplixo.db.collection() with onChange() for persistent chat, deplixo.broadcast.send/on for ephemeral signals only\n"
         "- App needs in-app notifications -> use deplixo.notifications.send/list/markRead (per-user, real-time)\n"
@@ -977,6 +978,7 @@ async def deplixo_deploy(
     claim_token: str = "",
     merge_files: bool = False,
     icon: str = "",
+    app_mode: str = "personal",
     access_code: str | None = None,
     auth_enabled: bool = False,
     auth_allowed_domains: list[str] | None = None,
@@ -1081,9 +1083,13 @@ async def deplixo_deploy(
         merge_files: When True, only add/replace files in payload — existing
                      files are preserved. Use for deploying large apps in chunks.
         icon: Optional emoji icon for the app.
-        access_code: Shared code visitors must enter. Empty string to remove.
-        auth_enabled: Require sign-in with a Deplixo account (Google/GitHub/email).
-        auth_allowed_domains: Restrict sign-in to these email domains.
+        app_mode: Access mode — "personal" (owner only, default), "shared"
+                  (name + access code, no login), or "authenticated" (Deplixo
+                  login required, roles available). Roles require "authenticated".
+        access_code: For shared mode: access code visitors must enter. Auto-generated
+                     if omitted. Empty string for open access (anyone with link).
+        auth_enabled: DEPRECATED — use app_mode="authenticated" instead.
+        auth_allowed_domains: For authenticated mode: restrict to these email domains.
         cron: Server-side scheduled tasks. List of dicts with: name (str),
               schedule (cron expression), action (event|clear-collection|
               trim-collection|random-pick|fetch), config (dict).
@@ -1132,6 +1138,8 @@ async def deplixo_deploy(
         payload["merge_files"] = True
     if icon:
         payload["icon"] = icon
+    if app_mode and app_mode != "personal":
+        payload["app_mode"] = app_mode
     if access_code is not None:
         payload["access_code"] = access_code
     if auth_enabled:
