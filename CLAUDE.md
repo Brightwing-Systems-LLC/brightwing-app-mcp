@@ -37,7 +37,7 @@ The full SDK reference lives in `deplixo/templates/pages/sdk.txt` — that is th
 **single source of truth**. The MCP instructions point to it rather than
 duplicating it.
 
-**The five locations that must stay in sync:**
+**The six locations that must stay in sync:**
 
 1. `deplixo/js/sdk/core.js` + `js/sdk/legos/` — The actual SDK code
 2. `deplixo/templates/pages/sdk.txt` — Authoritative SDK reference (fetched by AIs)
@@ -54,15 +54,21 @@ duplicating it.
    - `reference.md` — Extended reference docs
    - `checks.yaml` — Scoring assertions for the prompt tester. Regex-based
      checks run against generated code after deploy.
-4. **This repo: `server.py`** — `_SDK_SNIPPETS` (fallback), IMPORTANT RULES,
-   "How to replace common stubs", Critical Quick Reference
+4. **This repo: `server.py`** — `_SDK_SNIPPETS` (fallback), IMPORTANT RULES
+   (now a **fallback** — canonical rules are in #6)
 5. `deplixo/api/v1/enhance.py` — Enhance LLM prompt and exclusion rules
+6. `deplixo/primitives/codegen_rules.yaml` — **Universal code-gen rules**
+   (NEVER/ALWAYS, stub replacements, critical quick reference, lego preferences).
+   This is the single source of truth for rules shared between the builder
+   prompt and MCP enhance responses. The MCP server fetches these from
+   `/api/v1/primitives/codegen-rules` and injects them into the enhance response.
+   The hardcoded rules in `server.py` `instructions=` are a fallback safety net.
 
 **When to update what:**
-- New/changed SDK feature → update ALL FIVE
-- New anti-pattern → `primitives/<name>/anti_patterns.md` + server.py NEVER rule
-- New "use X instead of Y" rule → server.py "How to replace common stubs"
+- New/changed SDK feature → update ALL SIX
+- New anti-pattern → `primitives/<name>/anti_patterns.md` + `codegen_rules.yaml` NEVER rule
+- New "use X instead of Y" rule → `codegen_rules.yaml` stub_replacements
 - Changed enhance behavior (which primitives are recommended) → `enhance.py`
 
-See `deplixo/CLAUDE.md` "SDK Documentation — KEEP ALL FIVE IN SYNC" for the
+See `deplixo/CLAUDE.md` "SDK Documentation — KEEP ALL SIX IN SYNC" for the
 full checklist.

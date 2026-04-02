@@ -32,6 +32,7 @@ async def _log_mcp_call(session_id: str, tool: str, mcp_request: dict,
 # =============================================================================
 
 _registry_cache: list[dict] | None = None
+_codegen_rules_cache: dict | None = None
 
 
 async def _get_registry() -> list[dict]:
@@ -49,6 +50,81 @@ async def _get_registry() -> list[dict]:
     except Exception as e:
         logger.warning("Failed to fetch primitives registry: %s", e)
     return []
+
+
+async def _get_codegen_rules() -> dict:
+    """Fetch universal code-gen rules from the Deplixo API (cached).
+
+    Returns the structured rules dict (critical_quick_reference, never_rules,
+    always_rules, stub_replacements, lego_rules). Falls back to empty dict
+    if the API is unreachable — the instructions= block has hardcoded fallback rules.
+    """
+    global _codegen_rules_cache
+    if _codegen_rules_cache is not None:
+        return _codegen_rules_cache
+    try:
+        async with httpx.AsyncClient(timeout=15.0) as client:
+            resp = await client.get(f"{DEPLIXO_API_URL}/api/v1/primitives/codegen-rules")
+            if resp.status_code == 200:
+                _codegen_rules_cache = resp.json()
+                logger.info("Loaded codegen rules from API")
+                return _codegen_rules_cache
+    except Exception as e:
+        logger.warning("Failed to fetch codegen rules: %s", e)
+    return {}
+
+
+def _format_codegen_rules_for_enhance(rules: dict, recommended_primitives: list[str]) -> str:
+    """Format codegen rules as markdown text for the enhance response.
+
+    Always-include sections are always present. Stub replacements and lego rules
+    are filtered to only include entries matching the recommended primitives.
+    """
+    if not rules:
+        return ""
+
+    rp_set = set(recommended_primitives) if recommended_primitives else set()
+    sections = []
+
+    # Critical Quick Reference (always)
+    cqr = rules.get("critical_quick_reference", [])
+    if cqr:
+        lines = ["## Critical Quick Reference (top bugs)\n"]
+        for i, item in enumerate(cqr, 1):
+            lines.append(f"{i}. **{item['rule']}**:")
+            lines.append(f"   CORRECT: `{item['correct']}`")
+            lines.append(f"   WRONG: `{item['wrong']}`")
+        sections.append("\n".join(lines))
+
+    # NEVER rules (always)
+    never = rules.get("never_rules", [])
+    if never:
+        lines = ["## NEVER Rules\n"]
+        for r in never:
+            lines.append(f"- {r}")
+        sections.append("\n".join(lines))
+
+    # Filtered stub replacements
+    stubs = rules.get("stub_replacements", [])
+    if stubs and rp_set:
+        filtered = [s for s in stubs if rp_set & set(s.get("primitives", []))]
+        if filtered:
+            lines = ["## How to Implement Common Features\n"]
+            for s in filtered:
+                lines.append(f"- {s['stub']} → {s['fix']}")
+            sections.append("\n".join(lines))
+
+    # Filtered lego rules
+    legos = rules.get("lego_rules", [])
+    if legos and rp_set:
+        filtered = [l for l in legos if rp_set & set(l.get("primitives", []))]
+        if filtered:
+            lines = ["## SDK Lego Preferences\n"]
+            for l in filtered:
+                lines.append(f"- {l['pattern']}: use `{l['use']}` — NEVER {l['never']}")
+            sections.append("\n".join(lines))
+
+    return "\n\n".join(sections)
 
 
 def _get_snippets_from_registry(registry: list[dict]) -> dict[str, str]:
@@ -723,7 +799,7 @@ mcp = FastMCP(
         "- App needs a contact/support form -> use deplixo.email.send() with reply_to set to the form submitter's email, so the recipient can reply directly to them. No collection needed — emails are auto-logged. Do NOT use deplixo.db.collection for contact forms.\n"
         "- App needs email signups/newsletter -> use deplixo.email.register() + .isRegistered()\n"
         "- App needs external event handling -> use deplixo.webhooks.on(name, handler) for inbound webhooks\n"
-        "- App needs scheduled/recurring tasks -> pass `cron` parameter with job definitions (server-side, runs even when nobody's online)\n"
+        "- App needs scheduled/recurring tasks -> pass `cron` parameter with job definitions (server-side, runs even when nobody's online). NEVER use setInterval/setTimeout — they only work while the tab is open.\n"
         "- App needs server-side automations (when X happens, do Y) -> use `triggers` deploy config. NEVER build polling loops or setTimeout chains for automation.\n"
         "- App needs access restriction -> pass `access_code` parameter (users must enter code to access the app)\n"
         "- App needs user login/auth -> pass `auth_enabled=True` AND use deplixo.auth.requireLogin() in code\n"
@@ -845,6 +921,11 @@ mcp = FastMCP(
         "then deplixo_edit with app_id and claim_token to apply changes.\n\n"
 
         "## IMPORTANT RULES\n\n"
+        # NOTE: These rules are a FALLBACK. The canonical rules live in
+        # deplixo/primitives/codegen_rules.yaml and are injected dynamically
+        # into the enhance response via _get_codegen_rules(). These hardcoded
+        # rules remain as a safety net if the API is unreachable.
+
         "- ALWAYS await deplixo.ready before accessing any SDK method.\n"
         "- ALWAYS access data via entry.value.fieldName, NOT entry.fieldName.\n"
         "- ALWAYS pass { personal: true/false } to collections.\n"
@@ -863,7 +944,7 @@ mcp = FastMCP(
         "- EVERY <img> in a preview MUST have an onerror fallback for the sandbox.\n"
         "- NEVER deploy TODO comments, placeholder functions, or hardcoded sample data.\n"
         "- NEVER use Firebase/MongoDB methods (.where, .onSnapshot, .findOne) — they don't exist.\n"
-        "- NEVER build client-side polling loops for automation — use `triggers` deploy config for server-side 'when X happens, do Y' patterns.\n"
+        "- NEVER use setInterval/setTimeout for recurring tasks (polling APIs, refreshing data, periodic cleanup) — use the `cron` deploy parameter for time-based schedules, `triggers` for event-driven automation. Client-side polling only works while the tab is open.\n"
         "- When updating an existing app, use deplixo_edit (NOT deplixo_deploy) for changes.\n"
         "- When using deplixo_edit, include 2-3 lines of surrounding context in search strings to ensure uniqueness.\n"
         "- If a deplixo_edit fails, use the returned file content to retry with corrected search strings — do NOT call read_source.\n"
@@ -1852,6 +1933,15 @@ async def deplixo_enhance(
                     f"— fields: {fields}"
                 )
             parts.append("")
+
+        # Inject universal codegen rules (fetched from API, filtered by primitives)
+        codegen_rules = await _get_codegen_rules()
+        if codegen_rules:
+            rules_text = _format_codegen_rules_for_enhance(codegen_rules, primitives)
+            if rules_text:
+                parts.append("---\n")
+                parts.append(rules_text)
+                parts.append("")
 
         parts.append(
             "**All the code patterns and anti-patterns above are REQUIRED reading. "
