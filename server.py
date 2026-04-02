@@ -433,7 +433,9 @@ _SDK_SNIPPETS = {
         "  ```js\n"
         "  // Deploy with auth_enabled=true\n"
         "  const user = await deplixo.auth.requireLogin(); // -> {id, email, name, role}\n"
-        "  if (user.role === 'admin') { showAdminPanel(); }\n"
+        "  if (deplixo.auth.hasRole('admin')) { showAdminPanel(); }\n"
+        "  // Or strict: await deplixo.auth.requireRole('admin'); // throws if not admin\n"
+        "  // Collection permissions: { permissions: 'role:admin' } enforced server-side\n"
         "  deplixo.auth.logout();\n"
         "  ```"
     ),
