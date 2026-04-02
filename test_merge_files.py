@@ -23,7 +23,7 @@ async def test_merge_files_included_in_payload():
     """merge_files=True is passed to the API payload."""
     mock_client = _mock_api_success({
         "url": "https://deplixo.com/abcd-efgh",
-        "hash_id": "abcd-efgh",
+        "app_id": "abcd-efgh",
         "updated": True,
     })
 
@@ -48,7 +48,7 @@ async def test_merge_files_false_not_in_payload():
     """merge_files=False (default) is not included in the payload."""
     mock_client = _mock_api_success({
         "url": "https://deplixo.com/abcd-efgh",
-        "hash_id": "abcd-efgh",
+        "app_id": "abcd-efgh",
     })
 
     with patch("server.httpx.AsyncClient") as mock_cls:
@@ -64,7 +64,7 @@ async def test_merge_files_without_index_html_allowed():
     """merge_files=True allows files dict without index.html (client-side)."""
     mock_client = _mock_api_success({
         "url": "https://deplixo.com/abcd-efgh",
-        "hash_id": "abcd-efgh",
+        "app_id": "abcd-efgh",
         "updated": True,
     })
 
@@ -101,7 +101,7 @@ async def test_merge_files_chunked_workflow():
     # Chunk 1: initial deploy
     mock_client_1 = _mock_api_success({
         "url": "https://deplixo.com/abcd-efgh",
-        "hash_id": "abcd-efgh",
+        "app_id": "abcd-efgh",
         "claim_token": "tok_123",
         "claim_url": "https://deplixo.com/claim/abc",
     })
@@ -120,7 +120,7 @@ async def test_merge_files_chunked_workflow():
     # Chunk 2: add JS with merge
     mock_client_2 = _mock_api_success({
         "url": "https://deplixo.com/abcd-efgh",
-        "hash_id": "abcd-efgh",
+        "app_id": "abcd-efgh",
         "updated": True,
         "claim_token": "tok_123",
         "claim_url": "https://deplixo.com/claim/abc",
@@ -147,7 +147,7 @@ async def test_merge_files_with_code_param():
     """merge_files works with code param (updates main HTML)."""
     mock_client = _mock_api_success({
         "url": "https://deplixo.com/abcd-efgh",
-        "hash_id": "abcd-efgh",
+        "app_id": "abcd-efgh",
         "updated": True,
     })
 

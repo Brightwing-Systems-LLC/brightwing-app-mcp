@@ -33,7 +33,7 @@ async def test_edit_success():
     mock_response.status_code = 200
     mock_response.json.return_value = {
         "url": "https://deplixo.com/abcd-efgh/",
-        "hash_id": "abcd-efgh",
+        "app_id": "abcd-efgh",
         "updated": True,
         "files_changed": ["index.html"],
         "files_added": [],
@@ -128,7 +128,7 @@ async def test_edit_with_feature_gaps():
     mock_response.status_code = 200
     mock_response.json.return_value = {
         "url": "https://deplixo.com/abcd-efgh/",
-        "hash_id": "abcd-efgh",
+        "app_id": "abcd-efgh",
         "updated": True,
         "files_changed": ["index.html"],
         "files_added": [],
@@ -187,7 +187,7 @@ async def test_edit_logging():
     mock_response.status_code = 200
     mock_response.json.return_value = {
         "url": "https://deplixo.com/abcd-efgh/",
-        "hash_id": "abcd-efgh",
+        "app_id": "abcd-efgh",
         "updated": True,
         "files_changed": ["index.html"],
         "files_added": [],

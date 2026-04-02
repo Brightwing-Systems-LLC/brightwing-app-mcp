@@ -1078,7 +1078,7 @@ async def deplixo_deploy(
         description: 1-2 sentence summary for social preview cards (OG tags).
         slug: Optional URL slug for a named app (requires account).
         remixed_from: App ID this was forked from (e.g. abcd-efgh).
-        app_id: Hash ID from a previous deploy to update an existing app.
+        app_id: UUID from a previous deploy to update an existing app.
         claim_token: Token from a previous deploy, required for updates.
         merge_files: When True, only add/replace files in payload — existing
                      files are preserved. Use for deploying large apps in chunks.
@@ -1172,7 +1172,7 @@ async def deplixo_deploy(
     if response.status_code == 200:
         data = response.json()
         url = data.get("url", "")
-        hash_id = data.get("hash_id", "")
+        app_id = data.get("app_id", "")
         updated = data.get("updated", False)
         resp_claim_token = data.get("claim_token", "")
         claim_url = data.get("claim_url")
@@ -1207,13 +1207,13 @@ async def deplixo_deploy(
             parts.append("")
             if resp_claim_token:
                 parts.append(
-                    f'For small changes, use deplixo_edit with app_id="{hash_id}" '
+                    f'For small changes, use deplixo_edit with app_id="{app_id}" '
                     f'and claim_token="{resp_claim_token}" (search-and-replace — faster). '
                     f'For large changes or rewrites, deplixo_deploy with app_id and claim_token works too.'
                 )
             else:
                 parts.append(
-                    f'For small changes, use deplixo_edit with app_id="{hash_id}" '
+                    f'For small changes, use deplixo_edit with app_id="{app_id}" '
                     f'(search-and-replace — faster). '
                     f'For large changes or rewrites, deplixo_deploy with app_id works too.'
                 )
@@ -1249,7 +1249,7 @@ async def deplixo_deploy(
             if session_id:
                 await _log_mcp_call(session_id, "deploy",
                                     {"app_id": app_id, "title": title, "updated": True},
-                                    deploy_result, app_id=hash_id)
+                                    deploy_result, app_id=app_id)
             return deploy_result
 
         # --- First deploy of this app ---
@@ -1283,7 +1283,7 @@ async def deplixo_deploy(
             if resp_claim_token:
                 parts.extend([
                     "",
-                    f'(Internal — to make changes, use deplixo_edit with app_id="{hash_id}" '
+                    f'(Internal — to make changes, use deplixo_edit with app_id="{app_id}" '
                     f'and claim_token="{resp_claim_token}". Use deplixo_deploy only for '
                     f'complete rewrites.)',
                 ])
@@ -1311,7 +1311,7 @@ async def deplixo_deploy(
             if session_id:
                 await _log_mcp_call(session_id, "deploy",
                                     {"title": title, "new": True},
-                                    deploy_result, app_id=hash_id)
+                                    deploy_result, app_id=app_id)
             return deploy_result
         else:
             # App was deployed by an authenticated user (already saved)
@@ -1321,7 +1321,7 @@ async def deplixo_deploy(
             if resp_claim_token:
                 parts.extend([
                     "",
-                    f'To make changes, use deplixo_edit with app_id="{hash_id}" '
+                    f'To make changes, use deplixo_edit with app_id="{app_id}" '
                     f'and claim_token="{resp_claim_token}".',
                 ])
             if suggestions:
@@ -1356,7 +1356,7 @@ async def deplixo_deploy(
             if session_id:
                 await _log_mcp_call(session_id, "deploy",
                                     {"title": title, "new_authenticated": True},
-                                    deploy_result, app_id=hash_id)
+                                    deploy_result, app_id=app_id)
             return deploy_result
     elif response.status_code == 400:
         try:
@@ -1454,7 +1454,7 @@ async def deplixo_edit(
     file content so you can construct correct search strings and retry.
 
     Args:
-        app_id: The app's hash ID (e.g. "abcd-efgh") from a previous deploy or read_source.
+        app_id: The app's UUID (e.g. "abcd-efgh") from a previous deploy or read_source.
         claim_token: The claim token from a previous deploy or read_source.
         edits: List of search-and-replace edits. Each: {"file": str, "search": str, "replace": str}
         new_files: Dict of {filepath: content} for entirely new files to add.
@@ -1509,7 +1509,7 @@ async def deplixo_edit(
     if response.status_code == 200:
         data = response.json()
         url = data.get("url", "")
-        hash_id = data.get("hash_id", "")
+        app_id = data.get("app_id", "")
         files_changed = data.get("files_changed", [])
         files_added = data.get("files_added", [])
         files_deleted = data.get("files_deleted", [])
@@ -1539,7 +1539,7 @@ async def deplixo_edit(
 
         parts.append("")
         parts.append(
-            f'To make more changes, use deplixo_edit with app_id="{hash_id}" '
+            f'To make more changes, use deplixo_edit with app_id="{app_id}" '
             f'and claim_token="{resp_claim_token}".'
         )
 
@@ -1567,7 +1567,7 @@ async def deplixo_edit(
         if session_id:
             await _log_mcp_call(session_id, "edit",
                                 {"app_id": app_id, "edits_count": len(edits or [])},
-                                edit_result, app_id=hash_id)
+                                edit_result, app_id=app_id)
         return edit_result
 
     elif response.status_code in (409, 422):
@@ -1655,13 +1655,13 @@ async def deplixo_read_source(url: str) -> str:
     """
     import re
 
-    # Parse URL to extract hash_id or edit token
+    # Parse URL to extract app_id or edit token
     url = url.strip().rstrip("/")
 
     # Edit link format: deplixo.com/edit/{token}
     edit_match = re.search(r'/edit/([a-f0-9]{64})', url)
     # App URL format: deplixo.com/xxxx-xxxx or deplixo.com/abcdefgh
-    app_match = re.search(r'/([a-z]{4}-?[a-z]{4})/?$', url)
+    app_match = re.search(r'/([0-9a-f]{8}-?[0-9a-f]{4}-?[0-9a-f]{4}-?[0-9a-f]{4}-?[0-9a-f]{12})/?$', url)
 
     if not edit_match and not app_match:
         return "Error: Could not parse Deplixo URL. Expected format: deplixo.com/abcd-efgh or deplixo.com/edit/{token}"
@@ -1670,7 +1670,7 @@ async def deplixo_read_source(url: str) -> str:
         async with httpx.AsyncClient(timeout=30.0) as client:
             if edit_match:
                 token = edit_match.group(1)
-                # First resolve the edit token to get the app hash_id
+                # First resolve the edit token to get the app app_id
                 resp = await client.get(
                     f"{DEPLIXO_API_URL}/edit/{token}/",
                     headers={"Accept": "application/json"},
@@ -1678,17 +1678,16 @@ async def deplixo_read_source(url: str) -> str:
                 )
                 if resp.status_code == 200:
                     data = resp.json()
-                    hash_id = data.get("hash_id", "")
+                    app_id = data.get("app_id", "")
                     token_param = token
                 else:
                     return f"Error: Edit link not found or invalid (HTTP {resp.status_code})"
             else:
-                hash_id = app_match.group(1).replace("-", "")
-                hash_id = f"{hash_id[:4]}-{hash_id[4:]}"
+                app_id = app_match.group(1).replace("-", "")
                 token_param = ""
 
             # Fetch source
-            source_url = f"{DEPLIXO_API_URL}/api/v1/apps/{hash_id}/source"
+            source_url = f"{DEPLIXO_API_URL}/api/v1/apps/{app_id}/source"
             if token_param:
                 source_url += f"?token={token_param}"
             resp = await client.get(source_url)
@@ -1699,7 +1698,7 @@ async def deplixo_read_source(url: str) -> str:
 
             data = resp.json()
             parts = [
-                f"Source code for: {data.get('title', 'Untitled')} ({data.get('hash_id', hash_id)})",
+                f"Source code for: {data.get('title', 'Untitled')} ({data.get('app_id', app_id)})",
                 f"Author: {data.get('author', 'unknown')}",
             ]
             if data.get('description'):
@@ -1733,7 +1732,7 @@ async def deplixo_read_source(url: str) -> str:
             if token_param:
                 parts.extend([
                     "",
-                    f'To make changes, use deplixo_edit with app_id="{data.get("hash_id", hash_id)}" '
+                    f'To make changes, use deplixo_edit with app_id="{data.get("app_id", app_id)}" '
                     f'and claim_token="{token_param}". '
                     f'Each edit is a search-and-replace block: '
                     f'{{"file": "index.html", "search": "old text", "replace": "new text"}}. '
@@ -2160,7 +2159,7 @@ async def deplixo_query(
     first to discover the schema. Then query specific collections.
 
     Args:
-        app_id: The app's hash ID (e.g. "abcd-efgh")
+        app_id: The app's UUID (e.g. "abcd-efgh")
         claim_token: The claim token from the deploy response
         collection: Name of the collection to query (e.g. "recipes", "tasks")
         sql: Raw SQL query (alternative to collection)

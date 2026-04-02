@@ -26,7 +26,7 @@ async def test_deploy_single_file_success():
     mock_response.status_code = 200
     mock_response.json.return_value = {
         "url": "https://deplixo.com/abcd-efgh",
-        "hash_id": "abcd-efgh",
+        "app_id": "abcd-efgh",
         "claim_token": "tok_secret123",
         "claim_url": "https://deplixo.com/claim/abc123",
     }
@@ -55,7 +55,7 @@ async def test_deploy_multi_file_success():
     mock_response.status_code = 200
     mock_response.json.return_value = {
         "url": "https://deplixo.com/wxyz-1234",
-        "hash_id": "wxyz-1234",
+        "app_id": "wxyz-1234",
     }
 
     with patch("server.httpx.AsyncClient") as mock_client_cls:
@@ -132,7 +132,7 @@ async def test_deploy_update_existing_app():
     mock_response.status_code = 200
     mock_response.json.return_value = {
         "url": "https://deplixo.com/abcd-efgh",
-        "hash_id": "abcd-efgh",
+        "app_id": "abcd-efgh",
         "updated": True,
         "claim_token": "tok_secret123",
         "claim_url": "https://deplixo.com/claim/abc123",
@@ -194,7 +194,7 @@ async def test_deploy_with_slug():
     mock_response.status_code = 200
     mock_response.json.return_value = {
         "url": "https://deplixo.com/user/myapp",
-        "hash_id": "abcd-efgh",
+        "app_id": "abcd-efgh",
     }
 
     with patch("server.httpx.AsyncClient") as mock_client_cls:
@@ -217,7 +217,7 @@ async def test_deploy_with_remixed_from():
     mock_response.status_code = 200
     mock_response.json.return_value = {
         "url": "https://deplixo.com/wxyz-abcd",
-        "hash_id": "wxyz-abcd",
+        "app_id": "wxyz-abcd",
     }
 
     with patch("server.httpx.AsyncClient") as mock_client_cls:
@@ -240,7 +240,7 @@ async def test_deploy_no_claim_url():
     mock_response.status_code = 200
     mock_response.json.return_value = {
         "url": "https://deplixo.com/user/myapp",
-        "hash_id": "abcd-efgh",
+        "app_id": "abcd-efgh",
     }
 
     with patch("server.httpx.AsyncClient") as mock_client_cls:

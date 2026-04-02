@@ -32,7 +32,7 @@ async def test_new_deploy_returns_claim_link_only():
     mock_response.status_code = 200
     mock_response.json.return_value = {
         "url": "https://deplixo.com/abcd-efgh",
-        "hash_id": "abcd-efgh",
+        "app_id": "abcd-efgh",
         "claim_token": "tok_secret123",
         "claim_url": "https://deplixo.com/claim/abc123",
     }
@@ -57,7 +57,7 @@ async def test_new_deploy_mentions_10_min_expiry():
     mock_response.status_code = 200
     mock_response.json.return_value = {
         "url": "https://deplixo.com/abcd-efgh",
-        "hash_id": "abcd-efgh",
+        "app_id": "abcd-efgh",
         "claim_token": "tok_secret123",
         "claim_url": "https://deplixo.com/claim/abc123",
     }
@@ -82,7 +82,7 @@ async def test_update_deploy_does_not_show_live_url():
     mock_response.status_code = 200
     mock_response.json.return_value = {
         "url": "https://deplixo.com/abcd-efgh",
-        "hash_id": "abcd-efgh",
+        "app_id": "abcd-efgh",
         "updated": True,
         "claim_token": "tok_secret123",
         "claim_url": "https://deplixo.com/claim/abc123",
@@ -121,7 +121,7 @@ async def test_read_source_with_app_url():
     mock_source_response.status_code = 200
     mock_source_response.json.return_value = {
         "title": "My App",
-        "hash_id": "abcd-efgh",
+        "app_id": "abcd-efgh",
         "author": "someone",
         "description": "A test app",
         "code": "<h1>Hello World</h1>",
@@ -153,17 +153,17 @@ async def test_read_source_with_edit_link():
     """Reading source with an edit link resolves the token, then fetches source with it."""
     token = "a" * 64  # 64-char hex token
 
-    # First call: resolve edit link -> returns hash_id
+    # First call: resolve edit link -> returns app_id
     mock_edit_response = MagicMock()
     mock_edit_response.status_code = 200
-    mock_edit_response.json.return_value = {"hash_id": "wxyz-1234"}
+    mock_edit_response.json.return_value = {"app_id": "wxyz-1234"}
 
     # Second call: fetch source with token
     mock_source_response = MagicMock()
     mock_source_response.status_code = 200
     mock_source_response.json.return_value = {
         "title": "Edit App",
-        "hash_id": "wxyz-1234",
+        "app_id": "wxyz-1234",
         "author": "editor",
         "description": "",
         "code": "<h1>Editable</h1>",
@@ -223,7 +223,7 @@ async def test_deploy_tool_uses_claim_token():
     mock_response.status_code = 200
     mock_response.json.return_value = {
         "url": "https://deplixo.com/abcd-efgh",
-        "hash_id": "abcd-efgh",
+        "app_id": "abcd-efgh",
         "updated": True,
         "claim_token": "tok_secret123",
         "claim_url": "https://deplixo.com/claim/abc123",

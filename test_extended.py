@@ -75,7 +75,7 @@ class TestDeployResponseFormatting:
         mock_response.status_code = 200
         mock_response.json.return_value = {
             "url": "https://deplixo.com/abcd-efgh",
-            "hash_id": "abcd-efgh",
+            "app_id": "abcd-efgh",
             "claim_token": "tok_123",
             "claim_url": "https://deplixo.com/claim/tok_123",
             "updated": False,
@@ -105,7 +105,7 @@ class TestDeployResponseFormatting:
         mock_response.status_code = 200
         mock_response.json.return_value = {
             "url": "https://deplixo.com/abcd-efgh",
-            "hash_id": "abcd-efgh",
+            "app_id": "abcd-efgh",
             "claim_token": "tok_123",
             "updated": True,
             "asset_warnings": ["Failed to download: bad.jpg"],
