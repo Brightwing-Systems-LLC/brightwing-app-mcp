@@ -938,6 +938,7 @@ mcp = FastMCP(
         "- NEVER embed LLM API keys — use deplixo.ai.prompt().\n"
         "- NEVER include CDN scripts for Chart.js, Leaflet, etc. — the SDK lazy-loads them.\n"
         "- NEVER build custom login forms — use deplixo.auth.requireLogin().\n"
+        "- NEVER use signInWithGoogle(), signIn(), signUp(), createUser(), login(), or any provider-specific auth method — they DO NOT EXIST and will silently hang. The ONLY auth method is deplixo.auth.requireLogin() which handles all providers automatically.\n"
         "- NEVER build name/username/display-name input fields — the platform shows an identity modal automatically on page load for multi-user apps (personal: false). Building your own creates a confusing double-prompt. Use deplixo.user.name to read the display name after await deplixo.ready. For auth apps: use deplixo.auth.user.name (from OAuth login).\n"
         "- NEVER build custom role systems — use deplixo.auth.user.role.\n"
         "- NEVER use base64/data URLs for images — use deplixo.upload().\n"
