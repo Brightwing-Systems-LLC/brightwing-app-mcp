@@ -104,6 +104,31 @@ def _format_codegen_rules_for_enhance(rules: dict, recommended_primitives: list[
             lines.append(f"- {r}")
         sections.append("\n".join(lines))
 
+    # ALWAYS rules (always)
+    always = rules.get("always_rules", [])
+    if always:
+        lines = ["## ALWAYS Rules\n"]
+        for r in always:
+            lines.append(f"- {r}")
+        sections.append("\n".join(lines))
+
+    # Never stubs (always)
+    never_stubs = rules.get("never_stubs", [])
+    if never_stubs:
+        lines = ["## NEVER Do This\n"]
+        for item in never_stubs:
+            lines.append(f"- `{item['pattern']}` → {item['fix']}")
+        sections.append("\n".join(lines))
+
+    # Always patterns (always)
+    always_patterns = rules.get("always_patterns", [])
+    if always_patterns:
+        lines = ["## ALWAYS Do This\n"]
+        for item in always_patterns:
+            lines.append(f"- {item['condition']}:")
+            lines.append(f"  → {item['pattern']}")
+        sections.append("\n".join(lines))
+
     # Filtered stub replacements
     stubs = rules.get("stub_replacements", [])
     if stubs and rp_set:
