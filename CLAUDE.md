@@ -1,74 +1,42 @@
 # Deplixo MCP Server
 
 ## Overview
-MCP server for deploying web apps to Deplixo (deplixo.com). No API key required — zero friction.
+MCP server for deploying web apps to Deplixo (deplixo.com). Thin file relay —
+receives code from AI clients, stages it on Deplixo, returns a key and a link.
+No API key required. No SDK knowledge needed.
 
-## Tools
-- `deplixo_deploy` - Deploy HTML/JS/CSS code and get a live URL instantly
+## Architecture
+
+The MCP server is a **stateless, thin relay**:
+
+```
+AI Client (Claude/GPT) → deplixo-mcp (MCP server at mcp.deplixo.com)
+                          → POST https://deplixo.com/api/v1/stage
+                            → Deplixo stages files, returns key + link
+                          → MCP formats response back to AI client
+                            → User clicks link → login → scope select → conversion → workspace
+```
+
+The MCP server has ZERO knowledge of the Deplixo SDK. It does not validate
+code, recommend primitives, or teach AIs how to write Deplixo code. AIs write
+normal code (React, vanilla JS, HTML) and Deplixo handles conversion server-side.
+
+## Tool
+- `deplixo_deploy` — Stage files on Deplixo, get a key + intake link
 
 ## Configuration
-Optional environment variable:
-- `DEPLIXO_API_URL` - API URL (default: https://deplixo.com)
+- `DEPLIXO_API_URL` — Backend URL (default: https://deplixo.com)
 
 ## Development
 ```bash
 uv sync
-uv run python server.py  # stdio transport
-uv run python http_server.py  # HTTP transport (for mcp.deplixo.com)
+uv run python server.py          # stdio transport
+uv run python http_server.py     # HTTP transport (for mcp.deplixo.com)
 ```
 
 ## Deployment
-Uses docker-compose.bws.yml for shared infrastructure deployment.
-Container connects to bws_network, served via Caddy at mcp.deplixo.com.
+Uses docker-compose.bws.yml. Container connects to bws_network, served via
+Caddy at mcp.deplixo.com.
 
-**CRITICAL: Do NOT SSH into the prod server to deploy.** Always commit and push to `main` — GitHub Actions handles deployment automatically. Do not run `git pull`, `docker compose`, or any other commands on the production server.
-
-## MCP Instructions — Architecture
-
-The `instructions=` block in `server.py` is intentionally **lean**. It does NOT
-contain the full SDK reference. Instead, it tells AIs:
-
-1. Call `deplixo_enhance` first to identify capabilities
-2. **Fetch `https://deplixo.com/sdk?format=text`** before writing any code
-3. Follow the Critical Quick Reference (top 5 bugs)
-4. Follow the IMPORTANT RULES and "How to replace common stubs" lists
-
-The full SDK reference lives in `deplixo/templates/pages/sdk.txt` — that is the
-**single source of truth**. The MCP instructions point to it rather than
-duplicating it.
-
-**The six locations that must stay in sync:**
-
-1. `deplixo/js/sdk/core.js` + `js/sdk/legos/` — The actual SDK code
-2. `deplixo/templates/pages/sdk.txt` — Authoritative SDK reference (fetched by AIs)
-3. `deplixo/primitives/<name>/` — **Registry files (snippets, anti-patterns,
-   manifests, checks). These take PRIORITY over `_SDK_SNIPPETS` in server.py.**
-   The enhance tool returns these directly to AI clients. If you update
-   server.py but not the primitive files, AIs see the OLD snippet.
-   - `snippet.js` — Code pattern AIs copy-paste (HIGHEST priority).
-     All `await` calls must be inside async functions.
-   - `anti_patterns.md` — Mistakes shown as "CRITICAL mistakes to avoid"
-   - `manifest.yaml` — Method descriptions, deploy flags, and `learning:` section
-     (tagline, description, why, use_cases, prompt, color) that powers `/building-blocks/`.
-     If the primitive surfaces multiple user-facing features, include a `capabilities:` list.
-   - `reference.md` — Extended reference docs
-   - `checks.yaml` — Scoring assertions for the prompt tester. Regex-based
-     checks run against generated code after deploy.
-4. **This repo: `server.py`** — `_SDK_SNIPPETS` (fallback), IMPORTANT RULES
-   (now a **fallback** — canonical rules are in #6)
-5. `deplixo/api/v1/enhance.py` — Enhance LLM prompt and exclusion rules
-6. `deplixo/primitives/codegen_rules.yaml` — **Universal code-gen rules**
-   (NEVER/ALWAYS, stub replacements, critical quick reference, lego preferences).
-   This is the single source of truth for rules shared between the builder
-   prompt and MCP enhance responses. The MCP server fetches these from
-   `/api/v1/primitives/codegen-rules` and injects them into the enhance response.
-   The hardcoded rules in `server.py` `instructions=` are a fallback safety net.
-
-**When to update what:**
-- New/changed SDK feature → update ALL SIX
-- New anti-pattern → `primitives/<name>/anti_patterns.md` + `codegen_rules.yaml` NEVER rule
-- New "use X instead of Y" rule → `codegen_rules.yaml` stub_replacements
-- Changed enhance behavior (which primitives are recommended) → `enhance.py`
-
-See `deplixo/CLAUDE.md` "SDK Documentation — KEEP ALL SIX IN SYNC" for the
-full checklist.
+**CRITICAL: Do NOT SSH into the prod server to deploy.** Always commit and push
+to `main` — GitHub Actions handles deployment automatically.
