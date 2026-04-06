@@ -124,7 +124,7 @@ async def deplixo_deploy(
     # Log the call
     await _log_mcp_call(
         session_id=new_key,
-        tool="deplixo_deploy",
+        tool="deploy",
         mcp_request={"title": title, "file_count": len(files), "key": key},
         mcp_response=f"key={new_key}, link={link}",
     )
