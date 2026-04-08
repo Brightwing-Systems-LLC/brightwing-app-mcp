@@ -19,9 +19,7 @@ jobs:
       - name: Run prod-deploy
         shell: bash
         run: |
-          cd /root/apps/deplixo-mcp
-          sudo git pull origin main
-          sudo just prod-deploy
+          sudo bash -c 'cd /root/apps/deplixo-mcp && git pull origin main && just prod-deploy'
 
       - name: Compose status
         if: always()
