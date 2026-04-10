@@ -8,6 +8,17 @@ from unittest.mock import AsyncMock, MagicMock, patch
 from server import deplixo_deploy
 
 
+@pytest.fixture
+def mock_deploy_client():
+    """Yields (mock_client_cls, mock_client) with async context manager wired up."""
+    with patch("server.httpx.AsyncClient") as mock_client_cls:
+        mock_client = AsyncMock()
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=False)
+        mock_client_cls.return_value = mock_client
+        yield mock_client_cls, mock_client
+
+
 @pytest.mark.asyncio
 async def test_deploy_files_required():
     """files is a required argument with no default."""
@@ -17,52 +28,44 @@ async def test_deploy_files_required():
 
 
 @pytest.mark.asyncio
-async def test_deploy_success():
+async def test_deploy_success(mock_deploy_client):
     """Successful deploy returns key and link."""
+    _mock_client_cls, mock_client = mock_deploy_client
+
     mock_response = MagicMock()
     mock_response.status_code = 200
     mock_response.json.return_value = {
         "key": "abc123",
         "link": "https://deplixo.com/go/abc123",
     }
+    mock_client.post.return_value = mock_response
 
-    with patch("server.httpx.AsyncClient") as mock_client_cls:
-        mock_client = AsyncMock()
-        mock_client.post.return_value = mock_response
-        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
-        mock_client.__aexit__ = AsyncMock(return_value=False)
-        mock_client_cls.return_value = mock_client
-
-        result = await deplixo_deploy(
-            files={"index.html": "<h1>Hello</h1>"},
-            title="Test App",
-        )
+    result = await deplixo_deploy(
+        files={"index.html": "<h1>Hello</h1>"},
+        title="Test App",
+    )
 
     assert "abc123" in result
     assert "deplixo.com/go/abc123" in result
 
 
 @pytest.mark.asyncio
-async def test_deploy_with_key_redeploy():
+async def test_deploy_with_key_redeploy(mock_deploy_client):
     """Re-deploy with key passes it in payload."""
+    _mock_client_cls, mock_client = mock_deploy_client
+
     mock_response = MagicMock()
     mock_response.status_code = 200
     mock_response.json.return_value = {
         "key": "abc123",
         "link": "https://deplixo.com/go/abc123",
     }
+    mock_client.post.return_value = mock_response
 
-    with patch("server.httpx.AsyncClient") as mock_client_cls:
-        mock_client = AsyncMock()
-        mock_client.post.return_value = mock_response
-        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
-        mock_client.__aexit__ = AsyncMock(return_value=False)
-        mock_client_cls.return_value = mock_client
-
-        await deplixo_deploy(
-            files={"index.html": "<h1>Updated</h1>"},
-            key="abc123",
-        )
+    await deplixo_deploy(
+        files={"index.html": "<h1>Updated</h1>"},
+        key="abc123",
+    )
 
     # First post call is the deploy, second is the mcp-log
     deploy_call = mock_client.post.call_args_list[0]
@@ -72,71 +75,55 @@ async def test_deploy_with_key_redeploy():
 
 
 @pytest.mark.asyncio
-async def test_deploy_api_error():
+async def test_deploy_api_error(mock_deploy_client):
     """API 500 returns error message."""
+    _mock_client_cls, mock_client = mock_deploy_client
+
     mock_response = MagicMock()
     mock_response.status_code = 500
     mock_response.text = "Internal Server Error"
+    mock_client.post.return_value = mock_response
 
-    with patch("server.httpx.AsyncClient") as mock_client_cls:
-        mock_client = AsyncMock()
-        mock_client.post.return_value = mock_response
-        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
-        mock_client.__aexit__ = AsyncMock(return_value=False)
-        mock_client_cls.return_value = mock_client
-
-        result = await deplixo_deploy(files={"index.html": "<h1>Hi</h1>"})
+    result = await deplixo_deploy(files={"index.html": "<h1>Hi</h1>"})
 
     assert "Error" in result
 
 
 @pytest.mark.asyncio
-async def test_deploy_timeout():
+async def test_deploy_timeout(mock_deploy_client):
     """Timeout returns friendly error."""
-    with patch("server.httpx.AsyncClient") as mock_client_cls:
-        mock_client = AsyncMock()
-        mock_client.post.side_effect = httpx.TimeoutException("timed out")
-        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
-        mock_client.__aexit__ = AsyncMock(return_value=False)
-        mock_client_cls.return_value = mock_client
+    _mock_client_cls, mock_client = mock_deploy_client
+    mock_client.post.side_effect = httpx.TimeoutException("timed out")
 
-        result = await deplixo_deploy(files={"index.html": "<h1>Hi</h1>"})
+    result = await deplixo_deploy(files={"index.html": "<h1>Hi</h1>"})
 
     assert "timed out" in result.lower()
 
 
 @pytest.mark.asyncio
-async def test_deploy_rate_limit():
+async def test_deploy_rate_limit(mock_deploy_client):
     """429 returns rate limit message."""
+    _mock_client_cls, mock_client = mock_deploy_client
+
     mock_response = MagicMock()
     mock_response.status_code = 429
+    mock_client.post.return_value = mock_response
 
-    with patch("server.httpx.AsyncClient") as mock_client_cls:
-        mock_client = AsyncMock()
-        mock_client.post.return_value = mock_response
-        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
-        mock_client.__aexit__ = AsyncMock(return_value=False)
-        mock_client_cls.return_value = mock_client
-
-        result = await deplixo_deploy(files={"index.html": "<h1>Hi</h1>"})
+    result = await deplixo_deploy(files={"index.html": "<h1>Hi</h1>"})
 
     assert "too many" in result.lower()
 
 
 @pytest.mark.asyncio
-async def test_deploy_400_returns_api_error():
+async def test_deploy_400_returns_api_error(mock_deploy_client):
     """400 returns the API error message."""
+    _mock_client_cls, mock_client = mock_deploy_client
+
     mock_response = MagicMock()
     mock_response.status_code = 400
     mock_response.json.return_value = {"error": "Files too large"}
+    mock_client.post.return_value = mock_response
 
-    with patch("server.httpx.AsyncClient") as mock_client_cls:
-        mock_client = AsyncMock()
-        mock_client.post.return_value = mock_response
-        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
-        mock_client.__aexit__ = AsyncMock(return_value=False)
-        mock_client_cls.return_value = mock_client
-
-        result = await deplixo_deploy(files={"index.html": "<h1>Hi</h1>"})
+    result = await deplixo_deploy(files={"index.html": "<h1>Hi</h1>"})
 
     assert "Files too large" in result
