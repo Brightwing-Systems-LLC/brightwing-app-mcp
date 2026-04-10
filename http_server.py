@@ -1,4 +1,5 @@
 """HTTP transport for the Deplixo MCP server."""
+import json as _json
 import logging
 import os
 import time
@@ -151,8 +152,6 @@ class RequestLoggingMiddleware:
             return
 
         # === Dev mode: verbose logging ===
-        import json as _json
-
         headers = {k.decode(): v.decode() for k, v in scope.get("headers", [])}
         host = headers.get("host", "?")
         origin = headers.get("origin", "-")

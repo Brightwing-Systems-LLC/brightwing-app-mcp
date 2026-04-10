@@ -1,6 +1,5 @@
 """Extended tests for http_server.py — endpoints and middleware."""
 import pytest
-from unittest.mock import AsyncMock, MagicMock, patch
 
 from starlette.testclient import TestClient
 
