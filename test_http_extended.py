@@ -28,8 +28,9 @@ class TestHealthEndpoint:
 class TestFaviconEndpoint:
     def test_returns_file(self, client):
         resp = client.get("/favicon.ico")
-        # Should return 200 or may return 404 if file missing in test env
-        assert resp.status_code in (200, 404)
+        # favicon.ico lives next to http_server.py and is always present.
+        assert resp.status_code == 200
+        assert resp.headers["content-type"] == "image/x-icon"
 
 
 class TestRequestBodyLimitMiddleware:
