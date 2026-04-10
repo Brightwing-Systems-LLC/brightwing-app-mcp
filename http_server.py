@@ -17,6 +17,19 @@ from server import mcp
 
 logger = logging.getLogger("deplixo-mcp")
 
+# ── Shared CORS / origin lists ──────────────────────────────────────────
+_PROD_ORIGINS = [
+    "https://mcp.deplixo.com",
+    # Claude
+    "https://claude.ai",
+    "https://*.claude.ai",
+    # ChatGPT
+    "https://chatgpt.com",
+    "https://*.chatgpt.com",
+    "https://chat.openai.com",
+    "https://*.openai.com",
+]
+
 MAX_REQUEST_BODY_BYTES = 10 * 1024 * 1024  # 10 MB
 
 
@@ -247,6 +260,12 @@ mcp.settings.streamable_http_path = "/"
 _is_dev = os.environ.get("DEPLIXO_API_URL", "").startswith("http://localhost")
 _ngrok_host = os.environ.get("NGROK_HOST", "")  # e.g. "abc123.ngrok-free.app"
 
+_DEV_ORIGINS = [
+    *(["http://localhost:8000", "http://127.0.0.1:8000", "http://localhost:8895", "http://127.0.0.1:8895"] if _is_dev else []),
+    *([f"https://{_ngrok_host}"] if _ngrok_host else []),
+    *(["https://keyton.ngrok.dev"] if _is_dev else []),
+]
+
 mcp.settings.transport_security = TransportSecuritySettings(
     enable_dns_rebinding_protection=not _is_dev,  # disable in dev for ngrok compatibility
     allowed_hosts=[
@@ -255,21 +274,7 @@ mcp.settings.transport_security = TransportSecuritySettings(
         *([_ngrok_host] if _ngrok_host else []),
         *(["keyton.ngrok.dev"] if _is_dev else []),
     ],
-    allowed_origins=[
-        "https://mcp.deplixo.com",
-        # Claude
-        "https://claude.ai",
-        "https://*.claude.ai",
-        # ChatGPT
-        "https://chatgpt.com",
-        "https://*.chatgpt.com",
-        "https://chat.openai.com",
-        "https://*.openai.com",
-        # Dev
-        *(["http://localhost:8000", "http://127.0.0.1:8000", "http://localhost:8895", "http://127.0.0.1:8895"] if _is_dev else []),
-        *([f"https://{_ngrok_host}"] if _ngrok_host else []),
-        *(["https://keyton.ngrok.dev"] if _is_dev else []),
-    ],
+    allowed_origins=_PROD_ORIGINS + _DEV_ORIGINS,
 )
 
 
@@ -309,17 +314,7 @@ def create_app():
     app.add_middleware(RequestLoggingMiddleware)
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=[
-            "https://mcp.deplixo.com",
-            # Claude
-            "https://claude.ai",
-            "https://*.claude.ai",
-            # ChatGPT
-            "https://chatgpt.com",
-            "https://*.chatgpt.com",
-            "https://chat.openai.com",
-            "https://*.openai.com",
-        ],
+        allow_origins=_PROD_ORIGINS + _DEV_ORIGINS,
         allow_methods=["GET", "POST", "DELETE", "OPTIONS"],
         allow_headers=["*"],
         allow_credentials=True,
