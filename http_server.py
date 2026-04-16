@@ -1,4 +1,5 @@
 """HTTP transport for the Deplixo MCP server."""
+import json as _json
 import logging
 import os
 import time
@@ -15,6 +16,19 @@ from mcp.server.transport_security import TransportSecuritySettings
 from server import mcp
 
 logger = logging.getLogger("deplixo-mcp")
+
+# ── Shared CORS / origin lists ──────────────────────────────────────────
+_PROD_ORIGINS = [
+    "https://mcp.deplixo.com",
+    # Claude
+    "https://claude.ai",
+    "https://*.claude.ai",
+    # ChatGPT
+    "https://chatgpt.com",
+    "https://*.chatgpt.com",
+    "https://chat.openai.com",
+    "https://*.openai.com",
+]
 
 MAX_REQUEST_BODY_BYTES = 10 * 1024 * 1024  # 10 MB
 
@@ -117,42 +131,28 @@ class RequestLoggingMiddleware:
         self.app = app
         self._verbose = os.environ.get("DEPLIXO_API_URL", "").startswith("http://localhost")
 
-    async def __call__(self, scope: Scope, receive: Receive, send: Send):
-        if scope["type"] != "http":
-            await self.app(scope, receive, send)
-            return
+    def _parse_sse_content(self, resp_text: str) -> None:
+        """Parse SSE event-stream and pretty-print JSON-RPC data payloads."""
+        for line in resp_text.split("\n"):
+            if line.startswith("data: "):
+                try:
+                    data = _json.loads(line[6:])
+                    result = data.get("result", {})
+                    content = result.get("content", [])
+                    if content:
+                        text = "\n".join(c.get("text", "") for c in content if c.get("type") == "text")
+                        logger.info("  RESPONSE content:\n%s", text)
+                    else:
+                        logger.info("  RESPONSE data:\n%s", _json.dumps(data, indent=2))
+                except _json.JSONDecodeError:
+                    logger.info("  RESPONSE SSE line: %s", line)
+            elif line.strip() and not line.startswith("event:"):
+                logger.info("  RESPONSE SSE: %s", line)
 
-        start = time.monotonic()
-        method = scope.get("method", "?")
-        path = scope.get("path", "/")
-
-        # Skip noisy reload polling
-        if path == "/__reload__/events/":
-            await self.app(scope, receive, send)
-            return
-
-        if not self._verbose:
-            # Production: simple one-line log
-            status_code = 0
-            async def send_wrapper(message):
-                nonlocal status_code
-                if message["type"] == "http.response.start":
-                    status_code = message.get("status", 0)
-                await send(message)
-            try:
-                await self.app(scope, receive, send_wrapper)
-            except Exception:
-                logger.exception("Unhandled exception on %s %s", method, path)
-                raise
-            finally:
-                elapsed_ms = (time.monotonic() - start) * 1000
-                level = logging.WARNING if status_code >= 400 else logging.INFO
-                logger.log(level, "%s %s → %d (%.0fms)", method, path, status_code, elapsed_ms)
-            return
-
-        # === Dev mode: verbose logging ===
-        import json as _json
-
+    async def _log_dev_request(
+        self, scope: Scope, receive: Receive, send: Send, method: str, path: str, start: float,
+    ) -> None:
+        """Dev mode: capture and log full request/response bodies for debugging."""
         headers = {k.decode(): v.decode() for k, v in scope.get("headers", [])}
         host = headers.get("host", "?")
         origin = headers.get("origin", "-")
@@ -215,29 +215,50 @@ class RequestLoggingMiddleware:
                 try:
                     resp_text = resp_raw.decode()
                     if "text/event-stream" in response_content_type:
-                        # Parse SSE and pretty-print the JSON-RPC data
-                        for line in resp_text.split("\n"):
-                            if line.startswith("data: "):
-                                try:
-                                    data = _json.loads(line[6:])
-                                    # Extract text content for readability
-                                    result = data.get("result", {})
-                                    content = result.get("content", [])
-                                    if content:
-                                        text = "\n".join(c.get("text", "") for c in content if c.get("type") == "text")
-                                        logger.info("  RESPONSE content:\n%s", text)
-                                    else:
-                                        logger.info("  RESPONSE data:\n%s", _json.dumps(data, indent=2))
-                                except _json.JSONDecodeError:
-                                    logger.info("  RESPONSE SSE line: %s", line)
-                            elif line.strip() and not line.startswith("event:"):
-                                logger.info("  RESPONSE SSE: %s", line)
+                        self._parse_sse_content(resp_text)
                     else:
                         logger.info("  RESPONSE body:\n%s", resp_text)
                 except UnicodeDecodeError:
                     logger.info("  RESPONSE body: (binary, %d bytes)", len(resp_raw))
 
             logger.info("━━━ DONE %s %s → %d (%.0fms)\n", method, path, status_code, elapsed_ms)
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send):
+        if scope["type"] != "http":
+            await self.app(scope, receive, send)
+            return
+
+        start = time.monotonic()
+        method = scope.get("method", "?")
+        path = scope.get("path", "/")
+
+        # Skip noisy reload polling
+        if path == "/__reload__/events/":
+            await self.app(scope, receive, send)
+            return
+
+        if self._verbose:
+            await self._log_dev_request(scope, receive, send, method, path, start)
+            return
+
+        # Production: simple one-line log
+        status_code = 0
+
+        async def send_wrapper(message):
+            nonlocal status_code
+            if message["type"] == "http.response.start":
+                status_code = message.get("status", 0)
+            await send(message)
+
+        try:
+            await self.app(scope, receive, send_wrapper)
+        except Exception:
+            logger.exception("Unhandled exception on %s %s", method, path)
+            raise
+        finally:
+            elapsed_ms = (time.monotonic() - start) * 1000
+            level = logging.WARNING if status_code >= 400 else logging.INFO
+            logger.log(level, "%s %s → %d (%.0fms)", method, path, status_code, elapsed_ms)
 
 
 # Override settings directly before running
@@ -248,6 +269,12 @@ mcp.settings.streamable_http_path = "/"
 _is_dev = os.environ.get("DEPLIXO_API_URL", "").startswith("http://localhost")
 _ngrok_host = os.environ.get("NGROK_HOST", "")  # e.g. "abc123.ngrok-free.app"
 
+_DEV_ORIGINS = [
+    *(["http://localhost:8000", "http://127.0.0.1:8000", "http://localhost:8895", "http://127.0.0.1:8895"] if _is_dev else []),
+    *([f"https://{_ngrok_host}"] if _ngrok_host else []),
+    *(["https://keyton.ngrok.dev"] if _is_dev else []),
+]
+
 mcp.settings.transport_security = TransportSecuritySettings(
     enable_dns_rebinding_protection=not _is_dev,  # disable in dev for ngrok compatibility
     allowed_hosts=[
@@ -256,21 +283,7 @@ mcp.settings.transport_security = TransportSecuritySettings(
         *([_ngrok_host] if _ngrok_host else []),
         *(["keyton.ngrok.dev"] if _is_dev else []),
     ],
-    allowed_origins=[
-        "https://mcp.deplixo.com",
-        # Claude
-        "https://claude.ai",
-        "https://*.claude.ai",
-        # ChatGPT
-        "https://chatgpt.com",
-        "https://*.chatgpt.com",
-        "https://chat.openai.com",
-        "https://*.openai.com",
-        # Dev
-        *(["http://localhost:8000", "http://127.0.0.1:8000", "http://localhost:8895", "http://127.0.0.1:8895"] if _is_dev else []),
-        *([f"https://{_ngrok_host}"] if _ngrok_host else []),
-        *(["https://keyton.ngrok.dev"] if _is_dev else []),
-    ],
+    allowed_origins=_PROD_ORIGINS + _DEV_ORIGINS,
 )
 
 
@@ -310,17 +323,7 @@ def create_app():
     app.add_middleware(RequestLoggingMiddleware)
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=[
-            "https://mcp.deplixo.com",
-            # Claude
-            "https://claude.ai",
-            "https://*.claude.ai",
-            # ChatGPT
-            "https://chatgpt.com",
-            "https://*.chatgpt.com",
-            "https://chat.openai.com",
-            "https://*.openai.com",
-        ],
+        allow_origins=_PROD_ORIGINS + _DEV_ORIGINS,
         allow_methods=["GET", "POST", "DELETE", "OPTIONS"],
         allow_headers=["*"],
         allow_credentials=True,
